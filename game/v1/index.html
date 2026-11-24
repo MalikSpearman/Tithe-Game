@@ -1,0 +1,889 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tithe Early Build</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: table on the left (enemy bar, enemy lanes, action strip, my lanes, my bar, hand), action log in a column on the right; on phones the log becomes a short strip between the two fields. */
+:root{
+  --table:#16202a; --table-2:#1d2a36; --line:#2f3f4f;
+  --ink:#f0e9d8; --ink-dim:#a39f90;
+  --card:#eadfc4; --card-2:#f5edd9; --card-ink:#2b2418; --card-line:#b9a883;
+  --ember:#d8642c; --hollow:#8e7ac2; --verdant:#3d9c78;
+  --gold:#d9ab52; --danger:#e25a4a; --ok:#6cc48b; --shield:#5e8fc6;
+  --display:'Cinzel',Georgia,serif; --body:'Source Sans 3',system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--table);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.35}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,.lane:focus-visible,[role=button]:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column}
+.screen{min-height:100%;display:flex;flex-direction:column;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ---------- deck pick ---------- */
+#pick{padding-block:28px 20px;gap:18px;overflow-y:auto}
+#pick h1{font-family:var(--display);font-size:40px;letter-spacing:.08em;margin:0;text-wrap:balance}
+#pick .tag{color:var(--ink-dim);max-width:34em;margin:0}
+.rules{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--table-2);font-size:14px;max-width:46em}
+.rules b{color:var(--gold)}
+.rules p{margin:0 0 6px}
+.rules p:last-child{margin:0}
+.decks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.deck{text-align:left;background:var(--table-2);border:1px solid var(--line);border-top:4px solid var(--dc);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;transition:transform .12s}
+.deck:hover{transform:translateY(-2px)}
+.deck h2{font-family:var(--display);font-size:18px;margin:0;color:var(--dc);letter-spacing:.04em}
+.deck .how{color:var(--ink-dim);font-size:14px;margin:0}
+.deck .keys{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.deck .keys span{font-size:12px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--ink-dim)}
+
+/* ---------- game ---------- */
+#game{padding-block:8px 6px;display:grid;grid-template-columns:1fr;grid-template-areas:"table";gap:10px;height:100%;overflow:hidden}
+.table{grid-area:table;display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0;overflow-y:auto}
+.logwrap{grid-area:log;display:none;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:10px;background:var(--table-2)}
+.logwrap h3{margin:0;font-family:var(--display);font-size:12px;letter-spacing:.1em;padding:8px 10px;border-bottom:1px solid var(--line);color:var(--ink-dim)}
+.log{overflow-y:auto;font-size:13px;line-height:1.4;padding:6px 10px;flex:1;min-height:0;scroll-behavior:smooth}
+.log div{padding:3px 0;border-bottom:1px solid var(--line);color:var(--ink-dim)}
+.log div:last-child{color:var(--ink);border:0}
+.log div.t{color:var(--gold);font-weight:600}
+.logstrip{display:flex;flex-direction:column;height:72px;flex:0 0 auto}
+.logstrip .log{padding:3px 8px;font-size:12px}
+@media (min-width:760px){
+  #game{grid-template-columns:minmax(0,1fr) 240px;grid-template-areas:"table log";max-width:1040px;width:100%;margin:0 auto}
+  .logwrap{display:flex}
+  .logstrip{display:none}
+}
+
+.pbar{display:flex;align-items:center;gap:8px;background:var(--table-2);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.pbar .who{font-family:var(--display);font-size:13px;letter-spacing:.06em;color:var(--pc);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat{display:flex;flex-direction:column;align-items:center;line-height:1.05;min-width:42px}
+.stat b{font-size:19px;font-weight:700}
+.stat small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+.stat.lp b{color:var(--danger)}
+.stat.deck b{color:var(--gold)}
+button.stat{background:transparent;border:1px solid var(--line);border-radius:7px;padding:2px 6px;cursor:pointer}
+button.stat:hover{border-color:var(--gold)}
+button.stat b{color:var(--hollow)}
+/* grave viewer */
+.gv{display:flex;flex-direction:column;gap:10px}
+.gv input{font:inherit;background:var(--table);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.gv .list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:50vh;padding-right:2px}
+.gv .row{display:flex;gap:8px;align-items:stretch;background:var(--card);color:var(--card-ink);border:1px solid var(--card-line);border-radius:8px;padding:6px;flex-wrap:nowrap}
+.gv .thumb{flex:0 0 44px;height:44px;border-radius:5px;overflow:hidden;background:var(--card-2);border:1px solid var(--card-line)}
+.gv .thumb svg{width:100%;height:100%;display:block}
+.gv .info{flex:1;min-width:0;font-size:12px;line-height:1.25}
+.gv .info b{font-family:var(--display);font-size:11px;color:var(--fc)}
+.gv .info .m{color:#6b5f48;font-size:11px}
+.gv .info .m.on{color:#2f6f49;font-weight:600}
+.gv .act{align-self:center;flex:0 0 auto}
+.gv .empty{color:var(--ink-dim);font-size:13px;text-align:center;padding:16px 0}
+.card .tx em{font-style:normal;color:#7a5a2a}
+.art img,.ico img,.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ---------- animation ---------- */
+@keyframes spawn{0%{transform:translateY(-18px) scale(.85);opacity:0;box-shadow:0 0 0 0 var(--fc)}55%{transform:translateY(2px) scale(1.03);opacity:1;box-shadow:0 0 18px 4px var(--fc)}100%{transform:none;box-shadow:0 0 0 0 transparent}}
+@keyframes lungeUp{0%{transform:none}45%{transform:translateY(-34px) scale(1.08);z-index:5}100%{transform:none}}
+@keyframes lungeDown{0%{transform:none}45%{transform:translateY(34px) scale(1.08);z-index:5}100%{transform:none}}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-5px) rotate(-2deg)}40%{transform:translateX(5px) rotate(2deg)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+@keyframes flip{0%{transform:rotateY(0)}50%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+@keyframes burn{0%{opacity:1;filter:brightness(1)}40%{filter:brightness(2.2) saturate(1.6);box-shadow:0 0 22px 6px var(--ember)}100%{opacity:0;transform:scale(.7) translateY(-10px);filter:brightness(3) blur(3px)}}
+@keyframes crumble{0%{opacity:1}100%{opacity:0;transform:translateY(22px) skewX(8deg);filter:blur(4px) grayscale(1)}}
+@keyframes wilt{0%{opacity:1}100%{opacity:0;transform:rotate(12deg) scale(.8);filter:saturate(0) brightness(.6)}}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.4)}100%{transform:scale(1)}}
+@keyframes floatUp{0%{opacity:0;transform:translate(-50%,0)}15%{opacity:1}100%{opacity:0;transform:translate(-50%,-34px)}}
+@keyframes flicker{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12) saturate(1.15)}}
+@keyframes drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes sway{0%,100%{transform:rotate(-.6deg)}50%{transform:rotate(.6deg)}}
+#game .lane.cre.spawn{animation:spawn .55s cubic-bezier(.2,.9,.3,1.2) both}
+#game .lane.cre.lunge-up{animation:lungeUp .5s ease-in-out both;z-index:5}
+#game .lane.cre.lunge-down{animation:lungeDown .5s ease-in-out both;z-index:5}
+#game .lane.cre.shake{animation:shake .45s ease both}
+#game .lane.cre.flip{animation:flip .5s ease both}
+.lane{perspective:600px}
+.ghost{position:absolute;inset:0;pointer-events:none;border-radius:8px;background:var(--card);border:1px solid var(--card-line);display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:4px 3px;color:var(--card-ink);animation-duration:.75s;animation-timing-function:ease-in;animation-fill-mode:forwards}
+.ghost .nm{font-family:var(--display);font-size:9.5px;font-weight:700;color:var(--fc)}
+.ghost .ico{width:100%;height:26px;border-radius:4px;overflow:hidden}.ghost .ico svg,.ghost .ico img{width:100%;height:100%;display:block;object-fit:cover}
+.ghost.ember{animation-name:burn}.ghost.hollow{animation-name:crumble}.ghost.verdant{animation-name:wilt}
+.stat.pop b{animation:pop .4s ease both}
+.stat{position:relative}
+.stat .delta{position:absolute;left:50%;top:-6px;transform:translateX(-50%);font-weight:700;font-size:14px;animation:floatUp 1s ease-out both;pointer-events:none;white-space:nowrap}
+.stat .delta.bad{color:var(--danger)}.stat .delta.good{color:var(--ok)}.stat .delta.gold{color:var(--gold)}
+.lane.cre.ember-f{animation:flicker 2.4s ease-in-out infinite}
+.lane.cre.hollow-f{animation:drift 3.2s ease-in-out infinite}
+.lane.cre.verdant-f{animation:sway 4s ease-in-out infinite;transform-origin:50% 100%}
+.card.drawn{animation:spawn .45s ease-out both}
+@media (prefers-reduced-motion:reduce){.lane.cre,.ghost,.stat b,.stat .delta,.card{animation:none!important}.ghost{display:none}}
+
+.field{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:0 0 auto}
+.lane{border:1px dashed var(--line);border-radius:8px;min-height:84px;display:flex;align-items:center;justify-content:center;color:var(--line);font-size:11px;font-variant-numeric:tabular-nums;position:relative;padding:0;background:transparent}
+.lane.open{cursor:pointer;border-color:var(--ok);color:var(--ok);border-style:solid}
+.lane.cre{border:2px solid var(--fc);background:var(--card);box-shadow:inset 0 0 0 1px rgba(0,0,0,.3),0 2px 6px rgba(0,0,0,.4);color:var(--card-ink);flex-direction:column;justify-content:space-between;padding:4px 3px;text-align:center;transition:transform .12s,box-shadow .12s;overflow:hidden}
+.lane.cre .nm{font-family:var(--display);font-size:9px;font-weight:700;line-height:1.1;color:#f3e7c9;background:#1a1510;margin:-4px -3px 2px;padding:3px 2px;border-bottom:1px solid #e9c874;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lane.cre .ico{width:100%;height:26px;border-radius:4px;overflow:hidden;opacity:.9}
+.lane.cre .ico svg{width:100%;height:100%;display:block}
+.lane.cre .nums{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;display:flex;justify-content:center;gap:4px;align-items:baseline}
+.lane.cre .nums span{opacity:.45;font-weight:600}
+.lane.cre .nums .on{opacity:1}
+.lane.cre .pos{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#6b5f48;font-weight:700}
+.lane.cre.def{background:linear-gradient(180deg,var(--card) 0,#cfd8e4 100%);border-color:var(--shield);border-style:double;border-width:3px}
+.lane.cre.def .pos{color:var(--shield)}
+.lane.cre.sleep{opacity:.66}
+.lane.cre.ready{cursor:pointer;box-shadow:inset 0 0 0 2px var(--ok)}
+.lane.cre.act{cursor:pointer}
+.lane.cre.selected{transform:translateY(-3px);box-shadow:0 0 0 3px var(--gold)}
+.lane.cre.targetable{cursor:pointer;box-shadow:0 0 0 3px var(--danger)}
+.lane.cre.buff{cursor:pointer;box-shadow:0 0 0 3px var(--ok)}
+.lane.cre.trib{cursor:pointer;box-shadow:0 0 0 3px var(--gold);opacity:.75}
+.lane.cre.trib::after{content:"TRIBUTE";position:absolute;inset:auto 0 30px;font-size:9px;letter-spacing:.1em;font-weight:700;color:var(--gold);background:rgba(20,25,30,.8);padding:1px 0}
+.lane.cre.tribok{cursor:pointer}
+.lane.cre .dot{position:absolute;top:3px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+
+.mid{display:flex;align-items:center;gap:8px;min-height:40px;flex-wrap:wrap;flex:0 0 auto}
+#status{flex:1 1 140px;min-width:0;font-size:13px;color:var(--ink-dim)}
+#status b{color:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--table-2);border-radius:8px;padding:7px 12px;font-weight:600;font-size:14px}
+.btn.primary{background:var(--gold);color:#241a08;border-color:var(--gold)}
+.btn.shield{border-color:var(--shield);color:#cfe0f5}
+.btn.on{background:var(--ok);color:#102015;border-color:var(--ok)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sm{padding:5px 10px;font-size:13px}
+
+/* hand */
+.hand{display:flex;gap:10px;overflow-x:auto;padding-block:10px 12px;scroll-snap-type:x proximity;flex:0 0 auto}
+/* ---------- card frames ---------- */
+.card{--frame:var(--fc);--plate:#1a1510;--gilt:#e9c874;
+  flex:0 0 134px;scroll-snap-align:start;position:relative;height:196px;padding:5px;border-radius:10px;text-align:left;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--frame) 85%,white) 0%,var(--frame) 35%,color-mix(in srgb,var(--frame) 55%,black) 100%);
+  box-shadow:0 2px 0 rgba(0,0,0,.4),0 6px 14px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.25);
+  color:var(--card-ink);display:flex;flex-direction:column;transition:transform .12s,box-shadow .12s;isolation:isolate}
+.card::before{content:"";position:absolute;inset:0;border-radius:10px;pointer-events:none;z-index:1;
+  background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(255,255,255,.06) 6px 7px)}
+.card.spell{--frame:color-mix(in srgb,var(--fc) 55%,#2a2440)}
+.card .inner{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;border-radius:6px;overflow:hidden;background:var(--card);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.card .head{background:linear-gradient(180deg,#2b241c,var(--plate));color:#f3e7c9;font-family:var(--display);font-size:10px;font-weight:700;line-height:1.1;padding:4px 6px 4px 28px;min-height:26px;display:flex;align-items:center;border-bottom:1px solid var(--gilt);letter-spacing:.02em;text-shadow:0 1px 0 #000}
+.card .cost{position:absolute;top:3px;left:3px;width:24px;height:24px;z-index:3;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#241a08;font-variant-numeric:tabular-nums;
+  background:linear-gradient(160deg,#fff2c4,var(--gilt) 45%,#9c7a2e);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+.card.spell .cost{background:linear-gradient(160deg,#e6dcff,#a994e0 45%,#4c3b7a);color:#1c1430}
+.card .art{height:58px;position:relative;overflow:hidden;background:#0d1117;box-shadow:inset 0 0 12px rgba(0,0,0,.8)}
+.card .art svg,.card .art img{width:100%;height:100%;display:block;object-fit:cover}
+.card .art::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,var(--frame) 0 2px,transparent 2px calc(100% - 2px),var(--frame) calc(100% - 2px)),linear-gradient(180deg,rgba(0,0,0,.25),transparent 30%,transparent 70%,rgba(0,0,0,.35))}
+.card .type{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#f3e7c9;padding:2px 6px;background:linear-gradient(90deg,var(--frame),color-mix(in srgb,var(--frame) 40%,#1a1510));text-shadow:0 1px 0 rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .tx{font-size:10px;line-height:1.2;color:#3d3326;padding:4px 6px;flex:1;overflow:hidden;
+  background:linear-gradient(var(--card-2),var(--card-2)),repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.03) 3px 4px);background-blend-mode:multiply}
+.card .tx em{font-style:normal;color:#7a5a2a;font-weight:600}
+.card .nums{display:flex;gap:4px;padding:3px 4px;background:linear-gradient(180deg,#2b241c,var(--plate));border-top:1px solid var(--gilt)}
+.card .nums .pl{flex:1;display:flex;align-items:center;justify-content:center;gap:3px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:#f3e7c9;background:rgba(255,255,255,.06);border:1px solid rgba(233,200,116,.35);border-radius:4px;padding:1px 0;text-shadow:0 1px 0 #000}
+.card .nums .pl span{font-size:8px;letter-spacing:.08em;color:var(--gilt);font-weight:600}
+.card .nums .pl.sp{font-size:9px;letter-spacing:.12em;color:var(--gilt)}
+.card.rare::after{content:"";position:absolute;inset:0;border-radius:10px;z-index:4;pointer-events:none;mix-blend-mode:screen;opacity:.55;
+  background:conic-gradient(from 200deg at 30% 20%,transparent 0 40%,rgba(255,255,255,.35) 45%,rgba(120,220,255,.35) 50%,rgba(255,180,230,.3) 55%,transparent 60% 100%);
+  background-size:220% 220%;animation:foil 4s linear infinite}
+@keyframes foil{0%{background-position:0% 0%}100%{background-position:100% 100%}}
+.card.playable{cursor:pointer;box-shadow:0 0 0 2px var(--ok),0 6px 14px rgba(0,0,0,.45)}
+.card.playable:hover{transform:translateY(-4px)}
+.card.dead{opacity:.5;filter:saturate(.6)}
+.card.armed{transform:translateY(-6px);box-shadow:0 0 0 3px var(--gold),0 10px 18px rgba(0,0,0,.5)}
+.hint{font-size:12px;color:var(--ink-dim);text-align:center;margin:0;flex:0 0 auto}
+
+/* overlay */
+#overlay{position:fixed;inset:0;background:rgba(10,15,20,.82);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-left,0px));z-index:20}
+#overlay .box{background:var(--table-2);border:1px solid var(--line);border-radius:12px;padding:22px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px;max-height:88vh;overflow-y:auto}
+#overlay h2{font-family:var(--display);margin:0;font-size:24px;letter-spacing:.06em}
+#overlay p{margin:0;color:var(--ink-dim)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+
+<div id="app">
+  <section id="pick" class="screen">
+    <h1>Tithe</h1>
+    <p class="tag">A 1-on-1 lane duel. There is no mana. You pay for cards with cards from the top of your own deck, or by tributing creatures you already control.</p>
+    <div class="rules">
+      <p><b>Win</b> by taking the enemy from 20 life to 0, or by leaving them nothing to draw.</p>
+      <p><b>Pay</b> a card's cost by burning that many cards off the top of your deck. A creature can also be paid by tributing your own creatures: each one covers its own printed cost. Spells can only be paid by burning.</p>
+      <p><b>Lanes.</b> Five lanes per side. Creatures attack straight across their lane. An empty lane opposite means a direct hit on the enemy's life.</p>
+      <p><b>Position.</b> Summon in attack or defense. Attack vs attack: higher ATK wins, the loser is destroyed and its owner takes the difference. Attack vs defense: ATK over the DEF destroys the defender (no damage unless Pierce); ATK under it bounces, and the attacker's owner takes the difference. Defenders can't attack. You may switch position once per turn, not on the turn summoned and not after attacking.</p>
+      <p><b>Keywords.</b> Haste attacks the turn it lands. Pierce pushes leftover ATK through a destroyed defender.</p>
+      <p><b>The grave.</b> Tap either Discard counter to open and search that pile. Some cards trigger <b>when milled</b> (burned or milled off the deck). Others have a <b>grave effect</b> you can activate from your discard on your turn, once per turn, by banishing that card.</p>
+    </div>
+    <div class="decks" id="decks"></div>
+    <div class="row"><button class="btn" id="gallery">Browse all cards</button></div>
+  </section>
+
+  <section id="game" class="screen" hidden>
+    <div class="table">
+      <div class="pbar enemy" id="ebar"></div>
+      <div class="field" id="efield"></div>
+      <div class="logstrip"><div class="log" id="log-m"></div></div>
+      <div class="mid" id="mid"></div>
+      <div class="field" id="mfield"></div>
+      <div class="pbar" id="mbar"></div>
+      <div class="hand" id="hand"></div>
+      <p class="hint" id="hint"></p>
+    </div>
+    <aside class="logwrap"><h3>ACTION LOG</h3><div class="log" id="log-d"></div></aside>
+  </section>
+</div>
+<div id="overlay" hidden></div>
+
+<script>
+// ---------- cards ----------
+const C = {
+  // Ember Court
+  cinder_pup:{n:'Cinder Pup',t:'c',cost:1,atk:2,def:1,kw:['haste'],mill:'Deal 1 damage to the enemy.',onMill:(g,o)=>{other(g,o).lp-=1}},
+  torch_runner:{n:'Torch Runner',t:'c',cost:1,atk:3,def:2,grave:{text:'Banish: deal 1 damage to the enemy.',fx:(g,o)=>{other(g,o).lp-=1},ai:(g,o)=>other(g,o).lp<=1?100:1}},
+  smoldering_imp:{n:'Smoldering Imp',t:'c',cost:1,atk:2,def:2},
+  flare_hound:{n:'Flare Hound',t:'c',cost:2,atk:3,def:2,kw:['haste']},
+  ash_lancer:{n:'Ash Lancer',t:'c',cost:2,atk:4,def:3,kw:['pierce']},
+  magma_brute:{n:'Magma Brute',t:'c',cost:3,atk:6,def:2},
+  ember_warden:{n:'Ember Warden',t:'c',cost:2,atk:2,def:4,text:'When played: gain 2 life.',fx:(g,o)=>heal(g,o,2),mill:'Gain 2 life.',onMill:(g,o)=>heal(g,o,2)},
+  pyre_knight:{n:'Pyre Knight',t:'c',cost:3,atk:5,def:4,kw:['haste']},
+  blaze_titan:{n:'Blaze Titan',t:'c',cost:4,atk:7,def:5,kw:['pierce']},
+  kindle:{n:'Kindle',t:'s',cost:1,target:'any',text:'Deal 2 damage to a creature or the enemy.',fx:(g,o,t)=>damage(g,o,t,2)},
+  rally:{n:'Rally',t:'s',cost:1,text:'Draw 2 cards.',fx:(g,o)=>draw(g,o,2),grave:{text:'Banish: draw 1 card.',fx:(g,o)=>draw(g,o,1),ai:(g,o)=>o.deck.length>6?1:0}},
+  fan_flames:{n:'Fan the Flames',t:'s',cost:2,text:'Your creatures get +2 ATK this turn.',fx:(g,o)=>{cre(o).forEach(c=>c.tmp+=2);log(g,`${o.name}'s creatures surge with +2 ATK.`)}},
+  scorch:{n:'Scorch',t:'s',cost:2,target:'enemyCreature',valid:(g,o,c)=>c.pos==='def',text:'Destroy an enemy creature in defense position.',fx:(g,o,t)=>destroy(g,other(g,o),t,'Scorch')},
+  flashover:{n:'Flashover',t:'s',cost:3,target:'any',text:'Deal 4 damage to a creature or the enemy.',fx:(g,o,t)=>damage(g,o,t,4)},
+
+  // Hollow Choir
+  bone_chorister:{n:'Bone Chorister',t:'c',cost:1,atk:1,def:2,text:'+1 ATK for every 3 cards in your discard.',scale:o=>({atk:Math.floor(o.discard.length/3),def:0}),grave:{text:'Banish: enemy mills 2.',fx:(g,o)=>mill(g,other(g,o),2),ai:(g,o)=>other(g,o).deck.length<=6?10:1}},
+  pallid_scout:{n:'Pallid Scout',t:'c',cost:1,atk:2,def:1,kw:['haste']},
+  crypt_bat:{n:'Crypt Bat',t:'c',cost:1,atk:1,def:1,kw:['haste'],text:'When played: enemy mills 1.',fx:(g,o)=>mill(g,other(g,o),1),mill:'Enemy mills 1.',onMill:(g,o)=>mill(g,other(g,o),1)},
+  dirge_singer:{n:'Dirge Singer',t:'c',cost:2,atk:2,def:3,text:'When played: enemy mills 2.',fx:(g,o)=>mill(g,other(g,o),2)},
+  ossuary_warden:{n:'Ossuary Warden',t:'c',cost:2,atk:3,def:4,grave:{text:'Banish: summon this into your lowest empty lane in defense position.',can:(g,o)=>o.field.some(x=>!x),fx:(g,o)=>{const i=o.field.indexOf(null);o.field[i]=makeCreature('ossuary_warden','def');log(g,`Ossuary Warden rises in lane ${i+1}.`)},ai:(g,o)=>4}},
+  soulrot_priest:{n:'Soulrot Priest',t:'c',cost:2,atk:2,def:2,text:'When played: enemy loses 1 life per 5 cards in their discard.',fx:(g,o)=>{const e=other(g,o),n=Math.floor(e.discard.length/5);if(n){e.lp-=n;log(g,`Soulrot Priest drains ${n} from ${e.name}.`)}}},
+  choir_lost:{n:'Choir of the Lost',t:'c',cost:3,atk:3,def:3,text:'+1 ATK and +1 DEF for every 4 cards in your discard.',scale:o=>({atk:Math.floor(o.discard.length/4),def:Math.floor(o.discard.length/4)})},
+  unquiet_colossus:{n:'Unquiet Colossus',t:'c',cost:5,atk:6,def:6,text:'Costs 1 less for every 5 cards in your discard.',costFn:o=>Math.max(1,5-Math.floor(o.discard.length/5))},
+  grave_whisper:{n:'Grave Whisper',t:'s',cost:1,text:'Enemy mills 3.',fx:(g,o)=>mill(g,other(g,o),3),mill:'Enemy mills 2.',onMill:(g,o)=>mill(g,other(g,o),2)},
+  grave_tide:{n:'Grave Tide',t:'s',cost:1,text:'Both players mill 3.',fx:(g,o)=>{mill(g,o,3);mill(g,other(g,o),3)}},
+  requiem:{n:'Requiem',t:'s',cost:2,target:'enemyCreature',valid:(g,o,c)=>effDef(c,other(g,o))<=3,text:'Destroy an enemy creature with DEF 3 or less.',fx:(g,o,t)=>destroy(g,other(g,o),t,'Requiem')},
+  exhume:{n:'Exhume',t:'s',cost:2,text:'Return the last creature in your discard to your hand.',fx:(g,o)=>{for(let i=o.discard.length-1;i>=0;i--){if(C[o.discard[i]].t==='c'){const id=o.discard.splice(i,1)[0];o.hand.push(id);log(g,`${o.name} exhumes ${C[id].n}.`);return}}log(g,'Nothing to exhume.')}},
+  grave_pact:{n:'Grave Pact',t:'s',cost:1,target:'myCreature',text:'Destroy one of your creatures. Enemy mills 4.',fx:(g,o,t)=>{destroy(g,o,t,'Grave Pact');mill(g,other(g,o),4)}},
+  hollow_hymn:{n:'Hollow Hymn',t:'s',cost:3,text:'Enemy mills 5.',fx:(g,o)=>mill(g,other(g,o),5)},
+
+  // Verdant Tide
+  sapling_guard:{n:'Sapling Guard',t:'c',cost:1,atk:1,def:4,mill:'Gain 1 life.',onMill:(g,o)=>heal(g,o,1)},
+  root_tender:{n:'Root Tender',t:'c',cost:1,atk:2,def:2,text:'When played: recover 2.',fx:(g,o)=>recover(g,o,2),mill:'Put this on the bottom of your deck instead.',onMill:(g,o)=>{const i=o.discard.lastIndexOf('root_tender');if(i>=0){o.discard.splice(i,1);o.deck.push('root_tender')}}},
+  grove_stag:{n:'Grove Stag',t:'c',cost:2,atk:4,def:2,grave:{text:'Banish: draw 1 card.',fx:(g,o)=>draw(g,o,1),ai:(g,o)=>o.deck.length>6?1:0}},
+  thicket_wall:{n:'Thicket Wall',t:'c',cost:2,atk:0,def:7},
+  mossback:{n:'Mossback',t:'c',cost:2,atk:3,def:5},
+  tidewater_druid:{n:'Tidewater Druid',t:'c',cost:2,atk:2,def:3,text:'When played: gain 3 life.',fx:(g,o)=>heal(g,o,3)},
+  riverstone_golem:{n:'Riverstone Golem',t:'c',cost:3,atk:5,def:6},
+  ancient_oak:{n:'Ancient Oak',t:'c',cost:4,atk:4,def:8},
+  leviathan:{n:'Verdant Leviathan',t:'c',cost:5,atk:8,def:8,kw:['pierce']},
+  replenish:{n:'Replenish',t:'s',cost:1,text:'Recover 4: the top 4 cards of your discard go under your deck.',fx:(g,o)=>recover(g,o,4),grave:{text:'Banish: gain 2 life.',fx:(g,o)=>heal(g,o,2),ai:(g,o)=>o.lp<=14?1:0}},
+  bloom:{n:'Bloom',t:'s',cost:2,target:'myCreature',text:'One of your creatures gets +2 ATK and +2 DEF.',fx:(g,o,t)=>{t.atk+=2;t.def+=2;log(g,`${t.n} blooms to ${t.atk}/${t.def}.`)}},
+  thorn_snare:{n:'Thorn Snare',t:'s',cost:2,target:'enemyCreature',text:'Deal 3 damage to an enemy creature.',fx:(g,o,t)=>damage(g,o,t,3)},
+  overgrow:{n:'Overgrow',t:'s',cost:3,text:'All your creatures get +1 ATK and +1 DEF.',fx:(g,o)=>{cre(o).forEach(c=>{c.atk++;c.def++});log(g,`${o.name}'s creatures overgrow.`)}},
+  great_tide:{n:'Great Tide',t:'s',cost:3,text:'Gain 5 life and recover 5.',fx:(g,o)=>{heal(g,o,5);recover(g,o,5)}},
+};
+const DECKS = {
+  ember:{name:'Ember Court',color:'var(--ember)',how:'Cheap bodies, Haste and burn. Win before your deck becomes the problem.',keys:['Aggro','Haste','Pierce'],
+    list:[['cinder_pup',3],['torch_runner',3],['smoldering_imp',3],['flare_hound',3],['ash_lancer',3],['magma_brute',2],['ember_warden',2],['pyre_knight',3],['blaze_titan',2],['kindle',3],['rally',3],['fan_flames',2],['scorch',2],['flashover',2]]},
+  hollow:{name:'Hollow Choir',color:'var(--hollow)',how:'Attack the enemy deck directly, and grow stronger the fuller your own discard gets.',keys:['Mill','Discard scaling','Deck-out'],
+    list:[['bone_chorister',3],['pallid_scout',3],['crypt_bat',2],['grave_whisper',3],['grave_tide',3],['dirge_singer',3],['ossuary_warden',3],['requiem',3],['choir_lost',3],['soulrot_priest',2],['exhume',2],['grave_pact',2],['hollow_hymn',2],['unquiet_colossus',2]]},
+  verdant:{name:'Verdant Tide',color:'var(--verdant)',how:'High-DEF walls, healing, and Recover effects that feed your discard back into your deck.',keys:['Control','Recover','Big finishers'],
+    list:[['sapling_guard',3],['root_tender',3],['grove_stag',3],['thicket_wall',2],['replenish',3],['mossback',3],['tidewater_druid',3],['bloom',2],['thorn_snare',3],['riverstone_golem',3],['overgrow',2],['ancient_oak',2],['great_tide',2],['leviathan',2]]},
+};
+const LANES=5;
+
+// ---------- card art: hand-composed cel-shaded SVG scenes ----------
+const PAL={
+  ember:{bg1:'#2b0c05',bg2:'#6a1e08',glow:'#ff7a1a',base:'#e65a1c',shade:'#8a2a0c',light:'#ffd27a',acc:'#fff1b8',ink:'#160805'},
+  hollow:{bg1:'#110c1f',bg2:'#33255a',glow:'#a98cff',base:'#8f78cf',shade:'#4a387d',light:'#ece3ff',acc:'#8ff5de',ink:'#0c0816'},
+  verdant:{bg1:'#06211a',bg2:'#125040',glow:'#4fe0a3',base:'#3fa37c',shade:'#1d5c46',light:'#cff7d8',acc:'#ffe27a',ink:'#061711'}
+};
+const DECK_OF={};Object.entries(DECKS).forEach(([k,d])=>d.list.forEach(([id])=>DECK_OF[id]=k));
+const I={ // drawing helpers; all in a 120x60 box
+  O:'stroke-linejoin="round" stroke-linecap="round"',
+  bg(p,uid){return `<defs><radialGradient id="g${uid}" cx="50%" cy="55%" r="60%"><stop offset="0" stop-color="${p.glow}" stop-opacity=".55"/><stop offset=".55" stop-color="${p.bg2}"/><stop offset="1" stop-color="${p.bg1}"/></radialGradient></defs><rect width="120" height="60" fill="url(#g${uid})"/>`},
+  speed(p,n=7,dir=1){let s='';for(let i=0;i<n;i++){const y=6+i*7.5,x=dir>0?-4:124,l=18+(i*13)%22;s+=`<line x1="${x}" y1="${y}" x2="${x+dir*l}" y2="${y}" stroke="${p.light}" stroke-width="${i%2?.8:1.4}" opacity=".35"/>`}return s},
+  sparks(p,seed=1,n=9){let h=seed*2654435761>>>0;const r=()=>{h=(h*1664525+1013904223)>>>0;return h/4294967296};let s='';for(let i=0;i<n;i++)s+=`<circle cx="${(6+r()*108).toFixed(1)}" cy="${(4+r()*52).toFixed(1)}" r="${(.6+r()*1.6).toFixed(1)}" fill="${i%3?p.acc:p.light}" opacity="${(.5+r()*.5).toFixed(2)}"/>`;return s},
+  ground(p){return `<path d="M0 50 Q30 44 60 50 T120 48 V60 H0Z" fill="${p.ink}" opacity=".55"/>`},
+  halo(p,x=60,y=32,r=22){return `<circle cx="${x}" cy="${y}" r="${r}" fill="${p.glow}" opacity=".22"/><circle cx="${x}" cy="${y}" r="${r*.6}" fill="${p.light}" opacity=".12"/>`},
+  shape(p,d,fill,extra=''){return `<path d="${d}" fill="${fill}" stroke="${p.ink}" stroke-width="1.3" ${I.O} ${extra}/>`},
+  rim(p,d){return `<path d="${d}" fill="none" stroke="${p.light}" stroke-width="1" opacity=".8" ${I.O}/>`},
+  flame(p,x,y,s=1,c){const d=`M${x} ${y} c${-6*s} ${-6*s} ${-3*s} ${-14*s} ${2*s} ${-18*s} c${-1*s} ${6*s} ${3*s} ${8*s} ${4*s} ${2*s} c${3*s} ${6*s} ${6*s} ${10*s} ${-6*s} ${16*s}z`;return I.shape(p,d,c||p.base)+`<path d="M${x+1*s} ${y-2*s} c${-2*s} ${-4*s} ${0} ${-8*s} ${2*s} ${-9*s} c0 ${4*s} ${2*s} ${5*s} ${0} ${9*s}z" fill="${p.light}"/>`},
+  eye(p,x,y,r=1.6,c){return `<circle cx="${x}" cy="${y}" r="${r}" fill="${c||p.acc}"/><circle cx="${x+.4}" cy="${y-.4}" r="${r*.4}" fill="#fff"/>`},
+};
+// ---- archetypes ----
+const A={
+  beast(p,o={}){ // fox/hound/pup/stag/bat
+    const f=o.flip?'transform="translate(120 0) scale(-1 1)"':'';
+    let s=`<g ${f}>`;
+    s+=I.shape(p,'M40 42 c-4 -12 10 -20 26 -17 c8 1 14 6 16 11 c3 7 -2 12 -10 12 l-28 0 c-5 0 -6 -3 -4 -6z',p.base);
+    s+=I.shape(p,'M48 48 l-3 8 l5 0 l2 -8z M60 48 l-2 8 l5 0 l1 -8z M72 48 l0 8 l5 0 l-1 -8z',p.shade);
+    s+=I.shape(p,o.tail==='flame'?'M40 40 c-12 -2 -16 -12 -10 -20 c2 6 6 8 10 6 c-2 6 2 10 6 12z':'M41 40 c-10 2 -16 -4 -14 -12 c3 5 7 6 12 6z',o.tail==='flame'?p.glow:p.shade);
+    s+=I.shape(p,'M76 30 c8 -8 18 -4 18 6 c0 6 -5 9 -10 9 c-6 0 -10 -4 -12 -8z',p.base);
+    if(o.ears==='antler'){s+=I.shape(p,'M84 26 l-2 -12 l-4 4 m4 -4 l5 -6 m-5 6 l-6 -3 M92 26 l4 -12 l3 5 m-3 -5 l-6 -4',p.light,'fill="none" stroke-width="1.6"')}
+    else if(o.ears==='bat'){s+=I.shape(p,'M78 29 l-10 -12 l10 4z M90 27 l10 -12 l-6 10z',p.shade)}
+    else s+=I.shape(p,'M80 28 l-2 -9 l7 4z M90 26 l4 -8 l2 8z',p.shade);
+    s+=I.eye(p,89,33);
+    s+=I.rim(p,'M50 27 c8 -5 20 -4 28 1');
+    if(o.mane)s+=I.flame(p,66,30,.8,p.glow)+I.flame(p,58,28,.6,p.base);
+    if(o.wings)s+=I.shape(p,'M60 30 l-24 -18 l6 16 l-14 -2 l12 10z M70 30 l24 -18 l-6 16 l14 -2 l-12 10z',p.shade);
+    return s+'</g>';
+  },
+  warrior(p,o={}){ // humanoid fighter with weapon
+    let s='';
+    s+=I.shape(p,'M54 32 l-6 20 l6 0 l6 -14 l6 14 l6 0 l-4 -20z',p.shade); // legs
+    s+=I.shape(p,'M52 20 l16 0 l4 14 l-24 0z',p.base); // torso
+    s+=I.shape(p,'M54 22 l-12 10 l4 4z',p.base); // arm back
+    s+=`<circle cx="60" cy="14" r="6" fill="${p.light}" stroke="${p.ink}" stroke-width="1.3"/>`;
+    s+=I.shape(p,'M54 12 l-4 -8 l6 4 l2 -7 l3 7 l5 -5 l-1 8 l5 -2 l-6 6z',o.hair||p.shade); // spiky hair
+    s+=`<rect x="57" y="13" width="7" height="2" fill="${p.ink}"/><circle cx="61" cy="14" r=".8" fill="${p.acc}"/>`;
+    if(o.cape)s+=I.shape(p,'M52 21 l-14 24 l10 -4 l6 -18z',p.glow);
+    const w=o.weapon||'sword';
+    if(w==='sword'){s+=I.shape(p,'M68 24 l28 -16 l3 3 l-26 20z',p.light);s+=`<path d="M70 26 l26 -16" stroke="${p.glow}" stroke-width="1.2"/>`;if(o.fire)s+=I.flame(p,96,10,.7,p.glow)+I.flame(p,88,14,.5,p.base)}
+    if(w==='lance'){s+=`<line x1="66" y1="26" x2="112" y2="14" stroke="${p.ink}" stroke-width="3"/><line x1="66" y1="26" x2="112" y2="14" stroke="${p.light}" stroke-width="1.4"/>`;s+=I.shape(p,'M108 11 l8 2 l-6 5z',p.acc)}
+    if(w==='torch'){s+=`<line x1="68" y1="26" x2="80" y2="12" stroke="${p.ink}" stroke-width="2.4"/><line x1="40" y1="28" x2="30" y2="14" stroke="${p.ink}" stroke-width="2.4"/>`;s+=I.flame(p,80,12,.8,p.glow)+I.flame(p,30,14,.8,p.glow)}
+    if(w==='dagger'){s+=I.shape(p,'M68 24 l12 -6 l1 2 l-11 8z',p.light)}
+    if(w==='shield'){s+=I.shape(p,'M70 18 l14 2 l-1 16 l-12 6 l-1 -24z',p.shade);s+=`<circle cx="76" cy="29" r="4" fill="${p.glow}"/>`}
+    if(o.fire)s+=I.flame(p,46,34,.5,p.glow);
+    return s;
+  },
+  brute(p,o={}){ // big heavy figure
+    let s='';
+    s+=I.shape(p,'M40 52 l6 -18 l28 0 l6 18z',p.shade);
+    s+=I.shape(p,'M38 20 c10 -12 34 -12 44 0 c4 6 2 14 -4 16 l-36 0 c-6 -2 -8 -10 -4 -16z',p.base);
+    s+=I.shape(p,'M36 24 l-14 18 l8 4 l12 -16z M84 24 l14 18 l-8 4 l-12 -16z',p.base);
+    s+=`<circle cx="60" cy="16" r="5" fill="${p.shade}" stroke="${p.ink}" stroke-width="1.3"/>`;
+    s+=I.eye(p,58,16,1.2,p.glow)+I.eye(p,62,16,1.2,p.glow);
+    s+=`<path d="M46 26 l6 6 M70 24 l-4 8 M54 36 l4 6 M64 34 l6 8" stroke="${p.glow}" stroke-width="1.4" ${I.O}/>`;
+    if(o.bones)s+=`<path d="M48 28 l24 0 M48 32 l24 0 M48 36 l24 0" stroke="${p.light}" stroke-width="1.2"/>`;
+    if(o.rock)s+=`<path d="M44 44 l8 -6 l6 4 M64 46 l6 -8 l6 6" stroke="${p.light}" stroke-width="1" fill="none" opacity=".7"/>`;
+    return s;
+  },
+  imp(p){
+    let s='';
+    s+=I.shape(p,'M54 50 c-6 -14 2 -24 10 -24 c8 0 14 10 8 24z',p.base);
+    s+=I.shape(p,'M58 24 l-4 -12 l7 6z M68 24 l6 -12 l-2 10z',p.shade);
+    s+=`<circle cx="63" cy="26" r="7" fill="${p.base}" stroke="${p.ink}" stroke-width="1.3"/>`;
+    s+=I.eye(p,60,25,1.4)+I.eye(p,66,25,1.4);
+    s+=`<path d="M58 30 q5 4 10 0" stroke="${p.ink}" stroke-width="1.2" fill="none"/><path d="M60 30 l1 2 m4 -2 l-1 2" stroke="${p.light}" stroke-width="1"/>`;
+    s+=I.shape(p,'M72 46 c10 -2 14 -10 8 -16 c4 8 -2 10 -6 12z',p.shade);
+    s+=I.flame(p,48,44,.6,p.glow)+I.flame(p,80,48,.5,p.glow);
+    return s;
+  },
+  serpent(p,o={}){
+    let s='';
+    const d='M4 50 C20 20 36 62 56 36 C70 18 84 42 98 24';
+    s+=`<path d="${d}" fill="none" stroke="${p.ink}" stroke-width="14" ${I.O}/><path d="${d}" fill="none" stroke="${p.base}" stroke-width="11" ${I.O}/><path d="${d}" fill="none" stroke="${p.shade}" stroke-width="11" stroke-dasharray="3 9" ${I.O} opacity=".6"/><path d="${d}" fill="none" stroke="${p.light}" stroke-width="2" ${I.O} opacity=".7" transform="translate(0 -3)"/>`;
+    s+=I.shape(p,'M94 18 c10 -6 20 -2 22 6 c-6 4 -12 6 -20 4z',p.base);
+    s+=I.shape(p,'M100 14 l-6 -10 l10 6z M108 16 l8 -8 l-2 10z',p.shade);
+    s+=I.eye(p,108,21,1.6);
+    s+=`<path d="M114 26 l6 2 l-5 2" stroke="${p.light}" stroke-width="1.2" fill="none"/>`;
+    if(o.runes)s+=`<path d="M22 38 l3 -4 M46 46 l3 -4 M70 30 l3 -4" stroke="${p.acc}" stroke-width="1.6"/>`;
+    s+=`<path d="M0 54 q20 -8 40 0 t40 0 t40 0" stroke="${p.acc}" stroke-width="1.4" fill="none" opacity=".7"/>`;
+    return s;
+  },
+  turtle(p){
+    let s='';
+    s+=I.shape(p,'M30 44 c0 -20 60 -20 60 0z',p.base);
+    s+=`<path d="M38 40 l10 -10 M50 38 l10 -12 M62 38 l10 -12 M74 40 l8 -8" stroke="${p.shade}" stroke-width="1.4"/>`;
+    s+=I.shape(p,'M86 44 c12 -4 14 2 12 6 c-6 0 -10 0 -12 -2z',p.base);
+    s+=I.eye(p,94,46,1.3);
+    s+=I.shape(p,'M34 44 l-2 8 l6 0 l0 -8z M80 44 l2 8 l6 0 l-2 -8z',p.shade);
+    s+=I.shape(p,'M58 30 l0 -10',p.shade,'stroke-width="2.6"');
+    s+=I.shape(p,'M58 22 c-12 -2 -14 -14 -4 -16 c2 -6 12 -6 14 0 c10 -2 12 12 0 16z',p.glow);
+    s+=`<circle cx="52" cy="14" r="1.2" fill="${p.acc}"/><circle cx="64" cy="12" r="1.2" fill="${p.acc}"/>`;
+    return s;
+  },
+  treant(p){
+    let s='';
+    s+=I.shape(p,'M48 54 l2 -24 l20 0 l2 24z',p.shade);
+    s+=I.shape(p,'M50 32 l-16 -8 l-8 -14 l6 2 l-2 -8 M70 32 l16 -10 l10 -12 l-6 4 l2 -8',p.shade,'fill="none" stroke-width="4"');
+    s+=I.shape(p,'M50 32 l-16 -8 l-8 -14 M70 32 l16 -10 l10 -12',p.base,'fill="none" stroke-width="2"');
+    s+=`<circle cx="30" cy="12" r="6" fill="${p.base}"/><circle cx="92" cy="12" r="6" fill="${p.base}"/><circle cx="60" cy="10" r="8" fill="${p.base}"/>`;
+    s+=`<circle cx="60" cy="10" r="8" fill="none" stroke="${p.ink}" stroke-width="1.2"/>`;
+    s+=`<path d="M55 38 l4 4 l-4 2z M65 38 l-4 4 l4 2z" fill="${p.glow}"/><path d="M56 48 q4 3 8 0" stroke="${p.glow}" stroke-width="1.4" fill="none"/>`;
+    return s;
+  },
+  wall(p){
+    let s='';
+    for(let i=0;i<7;i++){const x=22+i*12;s+=`<path d="M${x} 56 c-3 -12 4 -20 -2 -32 c3 4 2 10 6 14 c-2 6 -6 10 0 18z" fill="${i%2?p.base:p.shade}" stroke="${p.ink}" stroke-width="1.2"/>`;s+=`<path d="M${x-3} 36 l-4 -3 M${x+2} 26 l4 -3 M${x-2} 48 l-4 -2" stroke="${p.light}" stroke-width="1.2"/>`}
+    s+=I.eye(p,46,32,1.5,p.acc)+I.eye(p,74,30,1.5,p.acc)+I.eye(p,60,40,1.2,p.acc);
+    return s;
+  },
+  skeleton(p,o={}){
+    let s='';
+    if(o.hood)s+=I.shape(p,'M44 56 l4 -28 c4 -12 20 -12 24 0 l4 28z',p.shade);
+    s+=`<circle cx="60" cy="24" r="8" fill="${p.light}" stroke="${p.ink}" stroke-width="1.3"/>`;
+    s+=`<ellipse cx="57" cy="23" rx="2" ry="2.4" fill="${p.ink}"/><ellipse cx="63" cy="23" rx="2" ry="2.4" fill="${p.ink}"/><circle cx="57" cy="23" r=".8" fill="${p.acc}"/><circle cx="63" cy="23" r=".8" fill="${p.acc}"/>`;
+    s+=`<path d="M56 30 l8 0 M57 30 l0 3 M60 30 l0 3 M63 30 l0 3" stroke="${p.ink}" stroke-width="1"/>`;
+    if(!o.hood)s+=`<path d="M52 36 q8 -2 16 0 M52 40 q8 -2 16 0 M52 44 q8 -2 16 0 M60 32 l0 16" stroke="${p.light}" stroke-width="1.6" fill="none"/>`;
+    if(o.sing)s+=`<path d="M57 31 q3 3 6 0 l0 4 q-3 2 -6 0z" fill="${p.ink}"/>`+`<path d="M70 20 c6 -8 4 -14 10 -16 M74 28 c8 -4 10 -12 16 -12" stroke="${p.acc}" stroke-width="1.5" fill="none" opacity=".8"/><text x="84" y="10" font-size="7" fill="${p.acc}">♪</text><text x="94" y="20" font-size="6" fill="${p.acc}">♫</text>`;
+    if(o.shield){s+=I.shape(p,'M70 24 l16 2 l-2 20 l-14 6z',p.base);s+=`<path d="M74 30 l6 0 M77 27 l0 8" stroke="${p.light}" stroke-width="1.4"/>`;s+=`<line x1="36" y1="18" x2="48" y2="40" stroke="${p.ink}" stroke-width="2.4"/>`}
+    if(o.lantern){s+=`<line x1="46" y1="34" x2="36" y2="40" stroke="${p.ink}" stroke-width="2"/><rect x="30" y="38" width="10" height="12" rx="2" fill="${p.ink}"/><rect x="32" y="40" width="6" height="8" fill="${p.acc}"/>`;s+=I.halo(p,35,44,10)}
+    return s;
+  },
+  robed(p,o={}){
+    let s='';
+    s+=I.shape(p,'M42 56 l8 -30 c2 -10 18 -10 20 0 l8 30z',p.base);
+    s+=I.shape(p,'M50 26 c0 -10 20 -10 20 0 c-4 4 -16 4 -20 0z',p.shade);
+    s+=`<ellipse cx="60" cy="24" rx="5" ry="4" fill="${p.ink}"/>`+I.eye(p,58,24,1.1)+I.eye(p,62,24,1.1);
+    s+=`<path d="M52 34 l-14 -8 M68 34 l14 -8" stroke="${p.base}" stroke-width="4" ${I.O}/>`;
+    if(o.orb){s+=I.halo(p,36,22,10)+`<circle cx="36" cy="22" r="4" fill="${p.acc}"/>`;s+=I.halo(p,84,22,10)+`<circle cx="84" cy="22" r="4" fill="${p.acc}"/>`}
+    if(o.water)s+=`<path d="M20 48 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0" stroke="${p.acc}" stroke-width="1.6" fill="none"/><path d="M30 22 c-4 -8 2 -12 4 -16 c2 4 8 8 4 16z" fill="${p.acc}"/><path d="M86 22 c-4 -8 2 -12 4 -16 c2 4 8 8 4 16z" fill="${p.acc}"/>`;
+    if(o.gnome){s+=`<path d="M56 18 l4 -14 l4 14z" fill="${p.acc}" stroke="${p.ink}" stroke-width="1"/>`;s+=`<path d="M84 44 c0 -8 8 -8 8 0 l-2 6 l-4 0z" fill="${p.shade}" stroke="${p.ink}" stroke-width="1"/><path d="M86 36 l2 -6" stroke="${p.acc}" stroke-width="1.5"/>`}
+    return s;
+  },
+  sprout(p){
+    let s='';
+    s+=I.shape(p,'M52 52 c-4 -12 4 -20 10 -20 c6 0 12 8 8 20z',p.base);
+    s+=`<circle cx="62" cy="30" r="6" fill="${p.light}" stroke="${p.ink}" stroke-width="1.2"/>`+I.eye(p,60,30,1.2,p.ink)+I.eye(p,64,30,1.2,p.ink);
+    s+=`<path d="M60 33 q2 2 4 0" stroke="${p.ink}" stroke-width="1" fill="none"/>`;
+    s+=I.shape(p,'M62 24 c-6 -8 -2 -14 4 -14 c-2 6 2 10 -4 14z M62 24 c6 -6 10 -2 8 4 c-4 -2 -6 -2 -8 -4z',p.base);
+    s+=I.shape(p,'M40 36 c-10 -2 -14 10 -6 16 c8 2 12 -8 6 -16z',p.shade);s+=`<path d="M36 40 l4 8" stroke="${p.light}" stroke-width="1.2"/>`;
+    return s;
+  },
+  golem(p){
+    let s='';
+    s+=I.shape(p,'M44 54 l4 -14 l24 0 l4 14z',p.shade);
+    s+=I.shape(p,'M40 22 c6 -10 34 -10 40 0 c2 8 0 16 -6 18 l-28 0 c-6 -2 -8 -10 -6 -18z',p.base);
+    s+=I.shape(p,'M38 26 l-12 16 l8 6 l10 -14z M82 26 l12 16 l-8 6 l-10 -14z',p.shade);
+    s+=`<rect x="54" y="12" width="12" height="9" rx="2" fill="${p.shade}" stroke="${p.ink}" stroke-width="1.2"/>`+I.eye(p,58,16,1.2)+I.eye(p,62,16,1.2);
+    s+=`<path d="M50 24 q4 12 0 24 M70 24 q-4 12 0 24" stroke="${p.acc}" stroke-width="1.8" fill="none" opacity=".9"/>`;
+    s+=`<circle cx="46" cy="30" r="2" fill="${p.light}" opacity=".6"/><circle cx="74" cy="34" r="2.5" fill="${p.light}" opacity=".6"/>`;
+    return s;
+  },
+  titan(p){
+    let s='';
+    s+=I.shape(p,'M38 56 l6 -20 l32 0 l6 20z',p.shade);
+    s+=I.shape(p,'M36 18 c8 -14 40 -14 48 0 c4 8 0 16 -6 18 l-36 0 c-6 -2 -10 -10 -6 -18z',p.ink);
+    s+=`<path d="M44 26 l8 8 M60 18 l0 16 M76 26 l-8 8" stroke="${p.glow}" stroke-width="2"/>`;
+    s+=`<path d="M52 12 l16 0 l-2 6 l-12 0z" fill="${p.shade}" stroke="${p.ink}" stroke-width="1.2"/>`+I.eye(p,56,14,1.4,p.glow)+I.eye(p,64,14,1.4,p.glow);
+    s+=I.flame(p,30,30,1.2,p.glow)+I.flame(p,92,30,1.2,p.glow)+I.flame(p,22,42,.8,p.base)+I.flame(p,100,42,.8,p.base);
+    s+=I.flame(p,52,10,.6,p.glow)+I.flame(p,68,10,.6,p.glow);
+    return s;
+  },
+  choir(p){return `<g transform="translate(-26 8) scale(.8)">${A.skeleton(p,{hood:true,sing:true})}</g><g transform="translate(34 8) scale(.8)">${A.skeleton(p,{hood:true,sing:true})}</g><g transform="translate(4 -2) scale(.95)">${A.skeleton(p,{hood:true,sing:true})}</g>`},
+  colossus(p){
+    let s=A.brute(p,{bones:true});
+    for(let i=0;i<5;i++){const x=24+i*18;s+=`<circle cx="${x}" cy="${52-(i%2)*3}" r="3" fill="${p.light}" stroke="${p.ink}" stroke-width=".8"/><ellipse cx="${x-1}" cy="${52-(i%2)*3}" rx=".7" ry="1" fill="${p.ink}"/><ellipse cx="${x+1}" cy="${52-(i%2)*3}" rx=".7" ry="1" fill="${p.ink}"/>`}
+    return s;
+  },
+  // ---- spell scenes ----
+  burst(p,o={}){let s=I.halo(p,60,30,26);for(let i=0;i<12;i++){const a=i*30*Math.PI/180,r1=8+(i%2)*4,r2=22+(i%3)*6;s+=`<path d="M${60+Math.cos(a-.15)*r1} ${30+Math.sin(a-.15)*r1} L${60+Math.cos(a)*r2} ${30+Math.sin(a)*r2} L${60+Math.cos(a+.15)*r1} ${30+Math.sin(a+.15)*r1}z" fill="${i%2?p.light:p.glow}" opacity=".9"/>`}s+=`<circle cx="60" cy="30" r="7" fill="${p.acc}"/>`;if(o.big)s+=`<circle cx="60" cy="30" r="20" fill="none" stroke="${p.light}" stroke-width="2" opacity=".6"/>`;return s},
+  hands(p,o={}){let s='';s+=I.shape(p,'M30 56 c-4 -14 10 -22 22 -16 l-2 6 c-8 -2 -14 2 -14 10z',p.base);s+=I.shape(p,'M90 56 c4 -14 -10 -22 -22 -16 l2 6 c8 -2 14 2 14 10z',o.bone?p.light:p.base);if(o.bone)s+=`<path d="M72 44 l10 -4 M74 48 l10 -2" stroke="${p.ink}" stroke-width="1"/>`;s+=I.halo(p,60,30,16)+I.flame(p,60,38,1.1,p.glow)+I.flame(p,52,40,.7,p.base)+I.flame(p,68,40,.7,p.base);if(o.sigil)s+=`<circle cx="60" cy="30" r="12" fill="none" stroke="${p.acc}" stroke-width="1.4" stroke-dasharray="3 2"/><path d="M60 20 l8 14 l-16 0z" fill="none" stroke="${p.acc}" stroke-width="1.2"/>`;return s},
+  wave(p,o={}){let s='';for(let i=0;i<4;i++){const y=30+i*7;s+=`<path d="M-4 ${y+10} C20 ${y-10} 40 ${y+16} 60 ${y} S100 ${y-14} 124 ${y+4} V64 H-4z" fill="${i%2?p.base:p.shade}" opacity="${.85-i*.1}" stroke="${p.ink}" stroke-width="1"/>`}s+=`<path d="M-4 40 C20 20 40 46 60 30 S100 16 124 34" fill="none" stroke="${p.light}" stroke-width="2" opacity=".9"/>`;if(o.souls)for(let i=0;i<5;i++)s+=`<circle cx="${16+i*22}" cy="${22+(i%2)*6}" r="3" fill="${p.light}" opacity=".8"/><circle cx="${15+i*22}" cy="${21+(i%2)*6}" r=".8" fill="${p.ink}"/><circle cx="${17+i*22}" cy="${21+(i%2)*6}" r=".8" fill="${p.ink}"/>`;if(o.stones)for(let i=0;i<4;i++)s+=`<path d="M${20+i*26} 52 l6 -8 l8 2 l2 8z" fill="${p.shade}" stroke="${p.ink}" stroke-width="1"/>`;return s},
+  horn(p){let s=I.speed(p,6,1);s+=I.shape(p,'M28 36 c20 -14 44 -18 70 -22 l-2 12 c-24 2 -48 8 -64 18z',p.light);s+=`<path d="M32 36 c18 -10 40 -14 62 -18" stroke="${p.shade}" stroke-width="1.2" fill="none"/>`;s+=I.shape(p,'M96 12 l10 -6 l2 14 l-12 2z',p.shade);s+=`<path d="M110 16 q10 -8 8 -20 M112 18 q14 0 20 -10 M110 20 q12 4 20 2" stroke="${p.glow}" stroke-width="1.6" fill="none"/>`;s+=I.shape(p,'M16 52 l6 -30 l6 30z M30 52 l4 -22 l4 22z',p.base);return s},
+  gust(p){let s='';for(let i=0;i<5;i++){const y=12+i*9;s+=`<path d="M4 ${y} q30 -8 60 0 t40 -4" stroke="${p.light}" stroke-width="${1.6-i*.2}" fill="none" opacity=".8"/>`}for(let i=0;i<6;i++)s+=I.flame(p,56+i*10,52,.8+(i%3)*.3,i%2?p.glow:p.base);return s},
+  pillar(p){let s=I.halo(p,60,44,18);s+=I.shape(p,'M48 2 l24 0 l-4 36 l-16 0z',p.glow);s+=I.shape(p,'M54 2 l12 0 l-2 30 l-8 0z',p.light);s+=I.shape(p,'M40 40 l20 -6 l20 6 l-4 14 l-32 0z',p.shade);s+=`<path d="M52 44 l8 8 M68 44 l-8 8 M58 42 l-2 10" stroke="${p.ink}" stroke-width="1.4"/>`;s+=I.sparks(p,5,10);return s},
+  notes(p){let s='';s+=I.shape(p,'M30 48 c4 -20 20 -26 34 -14 c8 8 -6 14 -12 8 c-6 -6 2 -12 8 -8',p.light,'fill="none" stroke-width="3"');s+=`<path d="M40 44 l30 -30" stroke="${p.light}" stroke-width="2"/>`;s+=`<path d="M58 30 l10 -8 l-6 -6 M70 36 l8 -8" stroke="${p.ink}" stroke-width="2"/>`;s+=`<text x="76" y="22" font-size="14" fill="${p.acc}" font-weight="700">♪</text><text x="92" y="36" font-size="11" fill="${p.acc}">♫</text><text x="86" y="52" font-size="9" fill="${p.light}">♩</text>`;s+=`<path d="M70 14 l6 -6 M80 44 l8 6" stroke="${p.glow}" stroke-width="1.4"/>`;return s},
+  grasp(p){let s=I.ground(p);s+=I.halo(p,60,20,16)+`<circle cx="60" cy="14" r="9" fill="${p.light}" opacity=".9"/>`;s+=I.shape(p,'M54 56 l2 -20 l4 -2 l1 -8 l3 0 l0 8 l3 -1 l1 -9 l3 0 l0 10 l3 -2 l2 -8 l3 1 l-2 12 l4 2 l-4 8 l-4 10z',p.light);s+=`<path d="M58 40 l10 -2 M60 46 l10 -2" stroke="${p.ink}" stroke-width="1"/>`;s+=I.sparks(p,9,8);return s},
+  cathedral(p){let s='';s+=I.shape(p,'M36 56 l0 -26 l12 -12 l12 10 l12 -10 l12 12 l0 26z',p.shade);s+=`<path d="M48 56 l0 -16 l6 -6 l6 6 l0 16 M72 56 l0 -16 l-6 -6" stroke="${p.ink}" stroke-width="1.2" fill="none"/>`;for(let i=0;i<4;i++)s+=`<path d="M60 30 m${-10-i*8} 0 a${10+i*8} ${10+i*8} 0 0 1 ${20+i*16} 0" fill="none" stroke="${p.acc}" stroke-width="${2-i*.3}" opacity="${.9-i*.2}"/>`;s+=`<circle cx="60" cy="34" r="4" fill="${p.acc}"/>`;return s},
+  seeds(p){let s='';s+=`<ellipse cx="60" cy="48" rx="46" ry="8" fill="${p.shade}" stroke="${p.ink}" stroke-width="1"/>`;for(let i=0;i<3;i++)s+=`<ellipse cx="60" cy="48" rx="${12+i*12}" ry="${2+i*2}" fill="none" stroke="${p.acc}" stroke-width="1" opacity="${.9-i*.25}"/>`;for(let i=0;i<6;i++){const x=20+i*16,y=10+(i%3)*8;s+=`<path d="M${x} ${y} c-3 4 0 8 3 8 c3 0 6 -4 3 -8z" fill="${p.acc}" stroke="${p.ink}" stroke-width=".8"/>`}s+=I.halo(p,60,46,14);return s},
+  bloom(p){let s=I.halo(p,60,32,24);const petal=(cx,cy,r,c)=>{let t='';for(let i=0;i<8;i++){const a=i*45*Math.PI/180;t+=`<ellipse cx="${cx+Math.cos(a)*r}" cy="${cy+Math.sin(a)*r}" rx="${r*.55}" ry="${r*.3}" fill="${c}" stroke="${p.ink}" stroke-width=".8" transform="rotate(${i*45} ${cx+Math.cos(a)*r} ${cy+Math.sin(a)*r})"/>`}return t+`<circle cx="${cx}" cy="${cy}" r="${r*.4}" fill="${p.acc}"/>`};s+=petal(60,30,12,p.light)+petal(30,40,7,p.base)+petal(90,36,8,p.base)+petal(44,14,5,p.light)+petal(80,14,5,p.light);s+=I.sparks(p,3,8);return s},
+  snare(p){let s='';s+=I.shape(p,'M54 50 l2 -14 l8 0 l2 14z M52 24 c0 -8 16 -8 16 0 c0 6 -16 6 -16 0z',p.shade);for(let i=0;i<4;i++){const x=24+i*24;s+=`<path d="M${x} 58 c${12-i*6} -20 ${20} -28 ${36-x+30} -40" fill="none" stroke="${p.base}" stroke-width="3.5" ${I.O}/><path d="M${x} 58 c${12-i*6} -20 ${20} -28 ${36-x+30} -40" fill="none" stroke="${p.ink}" stroke-width="1" stroke-dasharray="2 5" ${I.O}/>`}s+=`<path d="M40 40 l-4 -3 M60 22 l3 -4 M78 34 l4 -2 M50 50 l-3 3" stroke="${p.light}" stroke-width="1.5"/>`;return s},
+  overgrow(p){let s='';s+=I.speed(p,5,-1);for(let i=0;i<6;i++){const x=10+i*20;s+=`<path d="M${x} 60 c-6 -16 8 -26 2 -40" fill="none" stroke="${i%2?p.base:p.shade}" stroke-width="3.5" ${I.O}/>`;s+=`<ellipse cx="${x+1}" cy="${22-(i%2)*6}" rx="4" ry="2.4" fill="${p.light}" transform="rotate(-30 ${x+1} ${22-(i%2)*6})"/>`;s+=`<circle cx="${x-3}" cy="${34+(i%3)*4}" r="2" fill="${p.acc}"/>`}return s},
+  book(p){let s='';s+=I.shape(p,'M34 46 l26 -4 l26 4 l0 -26 l-26 -4 l-26 4z',p.light);s+=`<path d="M60 16 l0 26" stroke="${p.ink}" stroke-width="1.2"/><path d="M40 24 l14 -2 M40 29 l14 -2 M40 34 l14 -2 M66 22 l14 2 M66 27 l14 2" stroke="${p.shade}" stroke-width="1"/>`;for(let i=0;i<6;i++)s+=`<path d="M${70+i*7} ${18-i*2} l5 -3 l1 3 l-5 2z" fill="${p.light}" opacity="${.9-i*.12}"/>`;s+=I.shape(p,'M20 56 c-2 -8 4 -14 8 -18 l6 2 c-6 4 -8 8 -8 14z',p.base);s+=`<path d="M22 50 c6 -4 10 -8 14 -10" stroke="${p.ink}" stroke-width="1" fill="none"/>`;return s},
+};
+// ---- card scene map ----
+const SCENE={
+  cinder_pup:[A.beast,{tail:'flame'}],torch_runner:[A.warrior,{weapon:'torch'}],smoldering_imp:[A.imp,{}],flare_hound:[A.beast,{mane:true,tail:'flame'}],
+  ash_lancer:[A.warrior,{weapon:'lance',cape:true}],magma_brute:[A.brute,{rock:true}],ember_warden:[A.warrior,{weapon:'shield'}],pyre_knight:[A.warrior,{weapon:'sword',fire:true,cape:true}],
+  blaze_titan:[A.titan,{}],kindle:[A.hands,{}],rally:[A.horn,{}],fan_flames:[A.gust,{}],scorch:[A.pillar,{}],flashover:[A.burst,{big:true}],
+  bone_chorister:[A.skeleton,{hood:true,sing:true}],pallid_scout:[A.warrior,{weapon:'dagger',hair:'#ece3ff'}],crypt_bat:[A.beast,{ears:'bat',wings:true}],dirge_singer:[A.robed,{}],
+  ossuary_warden:[A.skeleton,{shield:true}],soulrot_priest:[A.skeleton,{hood:true,lantern:true}],choir_lost:[A.choir,{}],unquiet_colossus:[A.colossus,{}],
+  grave_whisper:[A.book,{}],grave_tide:[A.wave,{souls:true}],requiem:[A.notes,{}],exhume:[A.grasp,{}],grave_pact:[A.hands,{bone:true,sigil:true}],hollow_hymn:[A.cathedral,{}],
+  sapling_guard:[A.sprout,{}],root_tender:[A.robed,{gnome:true}],grove_stag:[A.beast,{ears:'antler'}],thicket_wall:[A.wall,{}],mossback:[A.turtle,{}],tidewater_druid:[A.robed,{water:true,orb:true}],
+  riverstone_golem:[A.golem,{}],ancient_oak:[A.treant,{}],leviathan:[A.serpent,{runes:true}],replenish:[A.seeds,{}],bloom:[A.bloom,{}],thorn_snare:[A.snare,{}],overgrow:[A.overgrow,{}],great_tide:[A.wave,{stones:true}],
+};
+// extra decoration per deck
+const DECO={ember:(p,i)=>I.speed(p,6,i%2?1:-1)+I.sparks(p,i,8),hollow:(p,i)=>I.sparks(p,i+40,12)+`<ellipse cx="60" cy="56" rx="70" ry="8" fill="${p.light}" opacity=".12"/>`,verdant:(p,i)=>I.sparks(p,i+80,10)+`<path d="M0 60 q30 -10 60 0 t60 0" fill="${p.shade}" opacity=".5"/>`};
+let artSeq=0;
+function art(id,color,spell){
+  const k=DECK_OF[id],p=PAL[k],sc=SCENE[id];
+  if(!p||!sc)return `<svg viewBox="0 0 120 60"><rect width="120" height="60" fill="${color}" opacity=".3"/></svg>`;
+  const uid=(artSeq++).toString(36),i=Object.keys(SCENE).indexOf(id);
+  const [fn,opts]=sc;
+  return `<svg viewBox="0 0 120 60" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${I.bg(p,uid)}${DECO[k](p,i)}${fn(p,opts)}</svg>`;
+}
+
+// ---------- helpers ----------
+let G=null, uid=1;
+const $=s=>document.querySelector(s);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const other=(g,o)=>o===g.me?g.ai:g.me;
+const cre=o=>o.field.filter(Boolean);
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+function log(g,s,t){g.log.push({s,t});g.status=s}
+function cardCost(id,o){const c=C[id];return c.costFn?c.costFn(o):c.cost}
+function effAtk(c,o){return c.atk+c.tmp+(C[c.id].scale?C[c.id].scale(o).atk:0)}
+function effDef(c,o){return c.def+(C[c.id].scale?C[c.id].scale(o).def:0)}
+function ownerOf(g,c){return g.me.field.includes(c)?g.me:g.ai}
+function makeCreature(id,pos){const d=C[id];return {uid:uid++,id,n:d.n,atk:d.atk,def:d.def,tmp:0,pos,ready:(d.kw||[]).includes('haste'),canSwitch:false,pierce:(d.kw||[]).includes('pierce')}}
+function heal(g,o,n){o.lp=Math.min(30,o.lp+n);log(g,`${o.name} gains ${n} life.`)}
+function draw(g,o,n){for(let i=0;i<n;i++){if(!o.deck.length)break;o.hand.push(o.deck.shift())}log(g,`${o.name} draws ${n}.`)}
+function toGrave(g,o,ids,verb){
+  if(!ids.length)return;
+  log(g,`${o.name} ${verb} ${ids.length}: ${ids.map(i=>C[i].n).join(', ')}.`);
+  for(const id of ids){o.discard.push(id);const d=C[id];if(d.onMill){log(g,`${d.n} milled: ${d.mill}`);d.onMill(g,o)}}
+}
+function mill(g,o,n){toGrave(g,o,o.deck.splice(0,n),'mills')}
+function activateGrave(g,o,idx){
+  const id=o.discard[idx],d=C[id];if(!d.grave||o.graveUsed)return false;
+  if(d.grave.can&&!d.grave.can(g,o))return false;
+  o.discard.splice(idx,1);o.graveUsed=true;
+  log(g,`${o.name} banishes ${d.n} from the grave: ${d.grave.text.replace('Banish: ','')}`);
+  d.grave.fx(g,o);return true;
+}
+function recover(g,o,n){const r=o.discard.splice(Math.max(0,o.discard.length-n),n);o.deck.push(...r);log(g,`${o.name} recovers ${r.length} into the deck.`)}
+function fx(g,e){(g.fx||(g.fx=[])).push(e)}
+function destroy(g,o,c,why){const i=o.field.indexOf(c);if(i<0)return;o.field[i]=null;o.discard.push(c.id);fx(g,{k:'ghost',side:o===g.me?'me':'ai',lane:i,id:c.id});log(g,`${c.n} is destroyed${why?' by '+why:''}.`)}
+function damage(g,o,t,n){
+  if(t==='face'){const e=other(g,o);e.lp-=n;log(g,`${e.name} takes ${n} damage.`);return}
+  const owner=ownerOf(g,t);t.def-=n;fx(g,{k:'shake',uid:t.uid});log(g,`${t.n} takes ${n} damage.`);
+  if(effDef(t,owner)<=0)destroy(g,owner,t);
+}
+function tributeValue(c){return Math.max(1,C[c.id].cost)}
+function burnFor(o,id,tribs){return Math.max(0,cardCost(id,o)-tribs.reduce((s,c)=>s+tributeValue(c),0))}
+function targetsFor(g,o,id){
+  const d=C[id];if(!d.target)return null;
+  const e=other(g,o);let list=[];
+  if(d.target==='any')list=[...cre(e),'face'];
+  if(d.target==='enemyCreature')list=[...cre(e)];
+  if(d.target==='myCreature')list=[...cre(o)];
+  if(d.valid)list=list.filter(t=>t==='face'||d.valid(g,o,t));
+  return list;
+}
+function playCard(g,o,idx,opts={}){
+  const id=o.hand[idx],d=C[id];const tribs=opts.tribs||[];
+  const burn=burnFor(o,id,tribs);
+  o.hand.splice(idx,1);
+  tribs.forEach(c=>{const i=o.field.indexOf(c);if(i>=0){o.field[i]=null;o.discard.push(c.id)}});
+  const pay=[tribs.length?`tributes ${tribs.map(c=>c.n).join(' + ')}`:'',burn?`burns ${burn}`:''].filter(Boolean).join(', ')||'free';
+  log(g,`${o.name} plays ${d.n} (${pay}).`);
+  toGrave(g,o,o.deck.splice(0,burn),'burns');
+  if(d.t==='c'){const cr=makeCreature(id,opts.pos||'atk');o.field[opts.lane]=cr;fx(g,{k:'spawn',uid:cr.uid});log(g,`${d.n} lands in lane ${opts.lane+1}, ${cr.pos==='atk'?'attack':'defense'} position.`);if(d.fx)d.fx(g,o,cr)}
+  else{o.discard.push(id);if(d.fx)d.fx(g,o,opts.target)}
+}
+function attack(g,o,a){
+  const e=other(g,o),lane=o.field.indexOf(a),t=e.field[lane],A=effAtk(a,o);
+  a.ready=false;a.canSwitch=false;
+  if(t)fx(g,{k:'shake',uid:t.uid});
+  if(!t){e.lp-=A;log(g,`${a.n} strikes lane ${lane+1} unopposed: ${e.name} takes ${A}.`);return}
+  if(t.pos==='atk'){
+    const B=effAtk(t,e);
+    if(A>B){destroy(g,e,t,a.n);e.lp-=A-B;log(g,`${e.name} takes ${A-B} overflow.`)}
+    else if(A<B){destroy(g,o,a,t.n);o.lp-=B-A;log(g,`${o.name} takes ${B-A} backlash.`)}
+    else{destroy(g,e,t,a.n);destroy(g,o,a,t.n);log(g,`${a.n} and ${t.n} trade.`)}
+  }else{
+    const D=effDef(t,e);
+    if(A>D){destroy(g,e,t,a.n);if(a.pierce){e.lp-=A-D;log(g,`${a.n} pierces for ${A-D}.`)}}
+    else if(A<D){o.lp-=D-A;fx(g,{k:'shake',uid:a.uid});log(g,`${a.n} bounces off ${t.n}; ${o.name} takes ${D-A}.`)}
+    else log(g,`${a.n} and ${t.n} hold.`);
+  }
+}
+function switchPos(g,o,c){c.pos=c.pos==='atk'?'def':'atk';c.canSwitch=false;fx(g,{k:'flip',uid:c.uid});log(g,`${c.n} switches to ${c.pos==='atk'?'attack':'defense'} position.`)}
+async function animatedAttack(g,o,a){
+  const el=document.querySelector(`.lane.cre[data-uid="${a.uid}"]`);
+  if(el&&!matchMedia('(prefers-reduced-motion: reduce)').matches){el.classList.add(o===g.me?'lunge-up':'lunge-down');await sleep(260)}
+  attack(g,o,a);
+}
+function startTurn(g,o){
+  cre(o).forEach(c=>{c.ready=true;c.canSwitch=true;c.tmp=0});o.graveUsed=false;
+  if(!o.deck.length){g.over={winner:other(g,o),why:`${o.name} has nothing left to draw.`};return}
+  o.hand.push(o.deck.shift());g.turnNo++;
+  log(g,`— ${o.name}'s turn ${Math.ceil(g.turnNo/2)} —`,1);
+}
+function checkOver(g){
+  if(g.over)return true;
+  if(g.me.lp<=0&&g.ai.lp<=0)g.over={winner:null,why:'Both fall at once.'};
+  else if(g.ai.lp<=0)g.over={winner:g.me,why:`${g.ai.name} is reduced to 0 life.`};
+  else if(g.me.lp<=0)g.over={winner:g.ai,why:`${g.me.name} is reduced to 0 life.`};
+  return !!g.over;
+}
+
+// ---------- AI ----------
+function aiPlan(g,o,id){
+  const d=C[id],e=other(g,o);
+  const dmg={kindle:2,flashover:4,thorn_snare:3}[id];
+  const val=c=>effAtk(c,e)+effDef(c,e);
+  if(dmg){
+    const kills=cre(e).filter(c=>effDef(c,e)<=dmg).sort((a,b)=>val(b)-val(a));
+    if(d.target==='any'&&e.lp<=dmg)return{t:'face',s:100};
+    if(kills.length)return{t:kills[0],s:val(kills[0])+2};
+    if(d.target==='any'&&!cre(e).length)return{t:'face',s:1};
+    return{s:0};
+  }
+  if(id==='requiem'||id==='scorch'){const v=targetsFor(g,o,id).sort((a,b)=>val(b)-val(a));return v.length?{t:v[0],s:val(v[0])+1}:{s:0}}
+  if(id==='bloom'){const v=cre(o).sort((a,b)=>effAtk(b,o)-effAtk(a,o));return v.length?{t:v[0],s:2}:{s:0}}
+  if(id==='grave_pact'){const v=cre(o).sort((a,b)=>effAtk(a,o)+effDef(a,o)-effAtk(b,o)-effDef(b,o));return v.length&&e.deck.length<=8?{t:v[0],s:6}:{s:0}}
+  if(id==='fan_flames')return{s:cre(o).filter(c=>c.ready&&c.pos==='atk').length>=2?3:0};
+  if(id==='overgrow')return{s:cre(o).length>=2?3:0};
+  if(id==='grave_whisper'||id==='hollow_hymn')return{s:e.deck.length<=(id==='hollow_hymn'?6:4)?20:2};
+  if(id==='grave_tide')return{s:o.deck.length>8?1:0};
+  if(id==='replenish')return{s:o.discard.length>=4?2:0};
+  if(id==='great_tide')return{s:o.discard.length>=5?(o.lp<=12?4:2):0};
+  if(id==='exhume')return{s:o.discard.some(x=>C[x].t==='c')?2:0};
+  if(id==='rally')return{s:o.deck.length>6?2:0};
+  return{s:1};
+}
+function aiChooseLane(g,o,id){
+  const e=other(g,o),d=C[id];let best=null;
+  o.field.forEach((slot,i)=>{
+    if(slot)return;const opp=e.field[i];let s,pos='atk';
+    if(!opp)s=5;
+    else if(opp.pos==='atk'){ if(d.atk>effAtk(opp,e))s=8;else if(d.def>effAtk(opp,e)){s=4;pos='def'}else{s=1;pos='def'} }
+    else{ if(d.atk>effDef(opp,e))s=7;else if(d.def>effAtk(opp,e)){s=3;pos='def'}else{s=1;pos='def'} }
+    if(!best||s>best.s)best={lane:i,pos,s};
+  });
+  return best;
+}
+async function aiTurn(g){
+  const o=g.ai,e=g.me;
+  startTurn(g,o);render();if(checkOver(g))return;await sleep(650);
+  // reposition
+  for(const c of cre(o)){
+    const lane=o.field.indexOf(c),opp=e.field[lane];if(!c.canSwitch)continue;
+    if(c.pos==='atk'&&opp&&opp.pos==='atk'&&effAtk(opp,e)>effAtk(c,o)&&effDef(c,o)>effAtk(opp,e)){switchPos(g,o,c);render();await sleep(400)}
+    else if(c.pos==='def'&&(!opp||(opp.pos==='atk'?effAtk(c,o)>effAtk(opp,e):effAtk(c,o)>effDef(opp,e)))){switchPos(g,o,c);render();await sleep(400)}
+  }
+  // grave effect (one per turn)
+  {let best=null;o.discard.forEach((id,i)=>{const d=C[id];if(!d.grave||(d.grave.can&&!d.grave.can(g,o)))return;const s=d.grave.ai?d.grave.ai(g,o):0;if(s>0&&(!best||s>best.s))best={i,s}});
+   if(best){activateGrave(g,o,best.i);render();if(checkOver(g))return;await sleep(650)}}
+  // play phase
+  for(let guard=0;guard<8;guard++){
+    let best=null;
+    o.hand.forEach((id,i)=>{
+      const d=C[id],cost=cardCost(id,o);let tribs=[];
+      if(d.t==='c'){
+        if(!o.field.some(x=>!x))return;
+        if(o.deck.length-cost<3){ // try tributes: weakest creatures worth less than the new one
+          const weak=cre(o).filter(c=>c.atk+c.def<d.atk+d.def-2).sort((a,b)=>a.atk+a.def-b.atk-b.def);
+          for(const w of weak){if(burnFor(o,id,tribs)===0)break;tribs.push(w)}
+        }
+        const burn=burnFor(o,id,tribs);
+        if(o.deck.length-burn<2||o.deck.length<burn)return;
+        const s=(d.atk+d.def)/Math.max(1,burn+tribs.length)+(d.fx?1:0);
+        if(!best||s>best.s)best={i,s,tribs,...aiChooseLane(g,o,id)};
+      }else{
+        const lethal=d.target==='any'&&e.lp<=({kindle:2,flashover:4}[id]||0);
+        if(o.deck.length<cost||(o.deck.length-cost<2&&!lethal))return;
+        const p=aiPlan(g,o,id);if(p.s<=0)return;
+        if(!best||p.s>best.s)best={i,s:p.s,target:p.t};
+      }
+    });
+    if(!best)break;
+    playCard(g,o,best.i,best);render();if(checkOver(g))return;await sleep(650);
+  }
+  // battle phase
+  for(const a of cre(o)){
+    if(!a.ready||a.pos!=='atk'||!o.field.includes(a))continue;
+    const lane=o.field.indexOf(a),t=e.field[lane],A=effAtk(a,o);
+    let go=false;
+    if(!t)go=true;
+    else if(t.pos==='atk')go=A>effAtk(t,e)||(A===effAtk(t,e)&&effDef(t,e)>=effDef(a,o));
+    else go=A>effDef(t,e)||(a.pierce&&A>effDef(t,e));
+    if(!go)continue;
+    await animatedAttack(g,o,a);render();if(checkOver(g))return;await sleep(700);
+  }
+  cre(o).forEach(c=>c.tmp=0);
+  g.turn='me';startTurn(g,g.me);render();checkOver(g);render();
+}
+
+// ---------- UI ----------
+function newGame(deckId){
+  const build=k=>shuffle(DECKS[k].list.flatMap(([id,n])=>Array(n).fill(id)));
+  const aiDeck=shuffle(Object.keys(DECKS).filter(k=>k!==deckId))[0];
+  G={turn:'me',turnNo:0,log:[],status:'',over:null,sel:null,arm:null,armPos:'atk',tribs:[],
+     me:{name:'You',deckId,deck:build(deckId),hand:[],field:Array(LANES).fill(null),discard:[],lp:20},
+     ai:{name:DECKS[aiDeck].name,deckId:aiDeck,deck:build(aiDeck),hand:[],field:Array(LANES).fill(null),discard:[],lp:20}};
+  for(let i=0;i<5;i++){G.me.hand.push(G.me.deck.shift());G.ai.hand.push(G.ai.deck.shift())}
+  log(G,`You lead the ${DECKS[deckId].name} against the ${G.ai.name}.`,1);
+  startTurn(G,G.me);
+  $('#pick').hidden=true;$('#game').hidden=false;render();
+}
+const armedId=()=>G.arm!=null?G.me.hand[G.arm]:null;
+const armedTargets=()=>{const id=armedId();return id?targetsFor(G,G.me,id):null};
+function bar(o,isEnemy){
+  const color=DECKS[o.deckId].color;
+  const targetable=isEnemy&&(armedTargets()||[]).includes('face');
+  return `<div class="pbar ${isEnemy?'enemy':''}" id="${isEnemy?'ebar':'mbar'}" style="--pc:${color};${targetable?'border-color:var(--danger);box-shadow:0 0 0 2px rgba(226,90,74,.35);cursor:pointer':''}" ${targetable?'tabindex="0" role="button"':''}>
+    <div class="who">${isEnemy?o.name:'You · '+DECKS[o.deckId].name}</div>
+    <div class="stat lp"><b>${Math.max(0,o.lp)}</b><small>Life</small></div>
+    <div class="stat deck"><b>${o.deck.length}</b><small>Deck</small></div>
+    <button class="stat grave" data-side="${isEnemy?'ai':'me'}" title="Open grave"><b>${o.discard.length}</b><small>Grave ${!isEnemy&&!o.graveUsed&&o.discard.some(x=>C[x].grave)?'●':''}</small></button>
+    <div class="stat"><b>${o.hand.length}</b><small>Hand</small></div></div>`;
+}
+function laneHTML(c,i,o,mine){
+  const color=DECKS[o.deckId].color;
+  if(!c){
+    const open=mine&&armedId()&&C[armedId()].t==='c'&&G.me.deck.length>=burnFor(G.me,armedId(),G.tribs);
+    const gh=(G.fx||[]).find(f=>f.k==='ghost'&&f.side===(mine?'me':'ai')&&f.lane===i);
+    const ghost=gh?`<div class="ghost ${o.deckId}" style="--fc:${color}"><div class="nm">${C[gh.id].n}</div><div class="ico">${art(gh.id,color)}</div><div class="pos">&nbsp;</div></div>`:'';
+    return `<div class="lane ${open?'open':''}" data-lane="${i}" ${open?'tabindex="0" role="button"':''}>${open?'summon':i+1}${ghost}</div>`;
+  }
+  const A=effAtk(c,o),D=effDef(c,o),def=c.pos==='def';
+  let cls='lane cre '+o.deckId+'-f'+(def?' def':'');
+  const ts=armedTargets();
+  if(mine){
+    const a=armedId();
+    if(a&&C[a].t==='c'){if(G.tribs.includes(c))cls+=' trib';else cls+=' tribok'}
+    else if(ts&&ts.includes(c))cls+=' buff';
+    else{
+      if(G.turn==='me'&&c.ready&&!def&&!G.arm)cls+=' ready';else if(G.turn==='me'&&c.canSwitch)cls+=' act';
+      if(!c.ready&&!c.canSwitch)cls+=' sleep';
+      if(G.sel===c.uid)cls+=' selected';
+    }
+  }else{ if(ts&&ts.includes(c))cls+=' targetable'; }
+  return `<div class="${cls}" data-uid="${c.uid}" style="--fc:${color}" tabindex="0">
+    ${mine&&c.ready&&!def&&G.turn==='me'?'<span class="dot" title="Ready"></span>':''}
+    <div class="nm">${c.n}</div><div class="ico">${art(c.id,color)}</div>
+    <div class="nums"><span class="${def?'':'on'}">${A}</span><span class="${def?'on':''}">${D}</span></div>
+    <div class="pos">${def?'▲ DEF':'⚔ ATK'}${c.pierce?' · P':''}</div></div>`;
+}
+function fieldHTML(o,mine){return o.field.map((c,i)=>laneHTML(c,i,o,mine)).join('')}
+function cardFace(id,color,cls,attrs=''){
+  const d=C[id];
+  const extra=(d.mill?`<em>Milled:</em> ${d.mill} `:'')+(d.grave?`<em>Grave:</em> ${d.grave.text.replace('Banish: ','')}`:'');
+  const stats=d.t==='c'
+    ?`<div class="pl">⚔ ${d.atk}<span>ATK</span></div><div class="pl">▲ ${d.def}<span>DEF</span></div>`
+    :`<div class="pl sp">SPELL · BURN ONLY</div>`;
+  const type=d.t==='c'?`Creature${(d.kw||[]).length?' · '+d.kw.join(' · '):''}`:`Spell${d.target?' · targeted':''}`;
+  return `<${attrs?'button':'div'} class="card ${d.t==='s'?'spell':''} ${d.cost>=4?'rare':''} ${cls}" style="--fc:${color}" ${attrs}>
+    <span class="cost">${d.cost}</span>
+    <div class="inner"><div class="head">${d.n}</div><div class="art">${art(id,color,d.t==='s')}</div><div class="type">${type}</div><div class="tx">${d.text||''} ${extra}</div><div class="nums">${stats}</div></div></${attrs?'button':'div'}>`;
+}
+function cardHTML(id,i){
+  const d=C[id],o=G.me,cost=cardCost(id,o),color=DECKS[o.deckId].color;
+  const ok=G.turn==='me'&&!G.sel&&(d.t==='c'?(o.deck.length>=cost||cre(o).length):o.deck.length>=cost)&&(d.t==='s'||o.field.some(x=>!x))&&(!d.target||targetsFor(G,o,id).length);
+  return cardFace(id,color,(ok?'playable':'dead')+(G.arm===i?' armed':''),`data-i="${i}"`).replace(`<span class="cost">${d.cost}</span>`,`<span class="cost">${cost}</span>`);
+}
+function midHTML(){
+  const a=armedId();
+  let h='';
+  if(G.turn!=='me')h=`<div id="status">${G.status}</div>`;
+  else if(a&&C[a].t==='c'){
+    const burn=burnFor(G.me,a,G.tribs),can=G.me.deck.length>=burn;
+    h=`<div id="status">Summon <b>${C[a].n}</b> · burn <b style="color:${can?'inherit':'var(--danger)'}">${burn}</b>${G.tribs.length?' · tributing '+G.tribs.length:''}. Tap your creatures to tribute, then an open lane.</div>
+       <button class="btn sm ${G.armPos==='atk'?'on':''}" id="posA">⚔ ATK</button><button class="btn sm shield ${G.armPos==='def'?'on':''}" id="posD">▲ DEF</button><button class="btn sm" id="cancel">Cancel</button>`;
+  }else if(a){h=`<div id="status">Pick a target for <b>${C[a].n}</b>.</div><button class="btn sm" id="cancel">Cancel</button>`}
+  else if(G.sel){
+    const c=cre(G.me).find(x=>x.uid===G.sel),lane=G.me.field.indexOf(c),opp=G.ai.field[lane];
+    const what=!opp?'direct hit':`vs ${opp.n} (${opp.pos==='atk'?'ATK '+effAtk(opp,G.ai):'DEF '+effDef(opp,G.ai)})`;
+    h=`<div id="status"><b>${c.n}</b> lane ${lane+1}: ${what}</div>
+       <button class="btn sm primary" id="atk" ${c.ready&&c.pos==='atk'?'':'disabled'}>Attack</button>
+       <button class="btn sm shield" id="sw" ${c.canSwitch?'':'disabled'}>To ${c.pos==='atk'?'DEF':'ATK'}</button><button class="btn sm" id="cancel">Cancel</button>`;
+  }else h=`<div id="status">${G.status}</div><button class="btn primary" id="endturn">End turn</button>`;
+  return h;
+}
+function render(){
+  if(!G)return;
+  $('#ebar').outerHTML=bar(G.ai,true);$('#mbar').outerHTML=bar(G.me,false);
+  $('#efield').innerHTML=fieldHTML(G.ai,false);$('#mfield').innerHTML=fieldHTML(G.me,true);
+  $('#hand').innerHTML=G.me.hand.map(cardHTML).join('');
+  $('#mid').innerHTML=midHTML();
+  applyFx();
+  const logH=G.log.map(l=>`<div class="${l.t?'t':''}">${l.s}</div>`).join('');
+  ['#log-d','#log-m'].forEach(s=>{const el=$(s);el.innerHTML=logH;el.scrollTop=el.scrollHeight});
+  let hint='';
+  if(G.turn!=='me')hint='Enemy is thinking…';
+  else if(G.arm!=null)hint='';
+  else if(G.sel)hint='';
+  else hint='Green card: play it. Green creature: attack across its lane. Tap any of your creatures to switch position. The cost badge is cards burned off your deck.';
+  $('#hint').textContent=hint;
+  wire();
+  if(G.over)showOver();
+}
+function applyFx(){
+  // one-shot classes from the queue
+  for(const f of (G.fx||[])){
+    if(f.uid){const el=document.querySelector(`.lane.cre[data-uid="${f.uid}"]`);if(el)el.classList.add(f.k)}
+  }
+  G.fx=[];
+  // stat deltas, detected by comparing with the last render
+  const p=G.prev||{};const snap={};
+  for(const side of ['me','ai']){
+    const o=G[side],q=p[side],bar=$(side==='me'?'#mbar':'#ebar');
+    snap[side]={lp:o.lp,deck:o.deck.length,grave:o.discard.length,hand:o.hand.length};
+    if(!q)continue;
+    const show=(sel,d,cls)=>{const st=bar.querySelector(sel);if(!st||!d)return;st.classList.add('pop');const sp=document.createElement('span');sp.className='delta '+cls;sp.textContent=(d>0?'+':'')+d;st.appendChild(sp)};
+    const dl=o.lp-q.lp;show('.stat.lp',dl,dl<0?'bad':'good');
+    const dd=o.deck.length-q.deck;show('.stat.deck',dd,dd<0?'bad':'gold');
+    const dg=o.discard.length-q.grave;show('.stat.grave',dg,'gold');
+    if(side==='me'){const dh=o.hand.length-q.hand;if(dh>0)[...$('#hand').children].slice(-dh).forEach(c=>c.classList.add('drawn'))}
+  }
+  G.prev=snap;
+}
+function finishPlay(){G.arm=null;G.tribs=[];G.sel=null;checkOver(G);render()}
+function wire(){
+  $('#hand').querySelectorAll('.card').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.i,id=G.me.hand[i],d=C[id];
+    if(G.turn!=='me'||G.over||!b.classList.contains('playable'))return;
+    G.sel=null;G.tribs=[];
+    if(d.t==='c'||d.target){G.arm=(G.arm===i?null:i);render();return}
+    playCard(G,G.me,i,{});finishPlay();
+  });
+  $('#mfield').querySelectorAll('.lane').forEach(el=>el.onclick=()=>{
+    if(G.turn!=='me'||G.over)return;
+    const a=armedId();
+    if(el.classList.contains('open')){playCard(G,G.me,G.arm,{lane:+el.dataset.lane,pos:G.armPos,tribs:G.tribs});finishPlay();return}
+    const c=cre(G.me).find(x=>x.uid==el.dataset.uid);if(!c)return;
+    if(a&&C[a].t==='c'){G.tribs=G.tribs.includes(c)?G.tribs.filter(x=>x!==c):[...G.tribs,c];render();return}
+    if(a){const ts=targetsFor(G,G.me,a);if(ts.includes(c)){playCard(G,G.me,G.arm,{target:c});finishPlay()}return}
+    G.sel=(G.sel===c.uid?null:c.uid);render();
+  });
+  const hitEnemy=t=>{
+    if(G.turn!=='me'||G.over)return;const a=armedId();
+    if(a&&C[a].t==='s'){const ts=targetsFor(G,G.me,a);if(ts.includes(t)){playCard(G,G.me,G.arm,{target:t});finishPlay()}}
+  };
+  $('#efield').querySelectorAll('.lane.cre').forEach(el=>el.onclick=()=>{const c=cre(G.ai).find(x=>x.uid==el.dataset.uid);if(c)hitEnemy(c)});
+  const eb=$('#ebar');eb.onclick=()=>hitEnemy('face');eb.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')hitEnemy('face')};
+  const on=(s,f)=>{const el=$(s);if(el)el.onclick=f};
+  document.querySelectorAll('button.stat.grave').forEach(b=>b.onclick=()=>showGrave(b.dataset.side));
+  on('#cancel',()=>{G.sel=null;G.arm=null;G.tribs=[];render()});
+  on('#posA',()=>{G.armPos='atk';render()});
+  on('#posD',()=>{G.armPos='def';render()});
+  on('#atk',async()=>{const c=cre(G.me).find(x=>x.uid===G.sel);if(!c||!c.ready||c.pos!=='atk')return;G.sel=null;$('#atk').disabled=true;await animatedAttack(G,G.me,c);checkOver(G);render()});
+  on('#sw',()=>{const c=cre(G.me).find(x=>x.uid===G.sel);if(!c||!c.canSwitch)return;switchPos(G,G.me,c);G.sel=null;render()});
+  on('#endturn',async()=>{if(G.turn!=='me'||G.over)return;G.sel=null;G.arm=null;G.tribs=[];cre(G.me).forEach(c=>c.tmp=0);G.turn='ai';log(G,'You end your turn.');render();await aiTurn(G)});
+}
+function showGrave(side,q=''){
+  const o=G[side],mine=side==='me',color=DECKS[o.deckId].color,ov=$('#overlay');
+  const needle=q.trim().toLowerCase();
+  const rows=o.discard.map((id,i)=>({id,i})).reverse().filter(({id})=>{const d=C[id];return !needle||(d.n+' '+(d.text||'')+' '+(d.mill||'')+' '+(d.grave?d.grave.text:'')+' '+(d.t==='c'?'creature':'spell')).toLowerCase().includes(needle)});
+  const canAct=mine&&G.turn==='me'&&!G.over&&!o.graveUsed;
+  ov.hidden=false;
+  ov.innerHTML=`<div class="box gv"><h2>${mine?'Your':o.name+"'s"} grave</h2><p>${o.discard.length} card${o.discard.length===1?'':'s'}, newest first.${mine?(o.graveUsed?' Grave effect already used this turn.':' One grave effect per turn.'):''}</p>
+    <input id="gq" type="search" placeholder="Search by name or effect…" value="${q.replace(/"/g,'&quot;')}" autocomplete="off">
+    <div class="list">${rows.length?rows.map(({id,i})=>{const d=C[id];const ok=canAct&&d.grave&&(!d.grave.can||d.grave.can(G,o));
+      return `<div class="row" style="--fc:${color}"><div class="thumb">${art(id,color,d.t==='s')}</div><div class="info"><b>${d.n}</b> · ${d.t==='c'?d.atk+'/'+d.def:'Spell'} · cost ${C[id].cost}<br>${d.text||''}${d.mill?`<div class="m">Milled: ${d.mill}</div>`:''}${d.grave?`<div class="m ${ok?'on':''}">Grave: ${d.grave.text.replace('Banish: ','')}</div>`:''}</div>${ok?`<button class="btn sm primary act" data-i="${i}">Activate</button>`:''}</div>`}).join(''):'<div class="empty">Nothing here.</div>'}</div>
+    <div class="row"><button class="btn" id="gclose">Close</button></div></div>`;
+  $('#gclose').onclick=()=>{ov.hidden=true};
+  const inp=$('#gq');inp.oninput=()=>{const pos=inp.selectionStart;showGrave(side,inp.value);const n=$('#gq');n.focus();n.setSelectionRange(pos,pos)};
+  ov.querySelectorAll('.act').forEach(b=>b.onclick=()=>{if(activateGrave(G,o,+b.dataset.i)){ov.hidden=true;checkOver(G);render()}});
+}
+function showOver(){
+  const ov=$('#overlay');ov.hidden=false;
+  const w=G.over.winner;
+  ov.innerHTML=`<div class="box"><h2>${w===null?'Draw':w===G.me?'You win':'You lose'}</h2><p>${G.over.why}</p>
+    <div class="row"><button class="btn primary" id="again">Pick a deck</button></div></div>`;
+  $('#again').onclick=()=>{ov.hidden=true;G=null;$('#game').hidden=true;$('#pick').hidden=false};
+}
+function pickScreen(){
+  $('#decks').innerHTML=Object.entries(DECKS).map(([k,d])=>`<button class="deck" data-k="${k}" style="--dc:${d.color}"><h2>${d.name}</h2><p class="how">${d.how}</p><div class="keys">${d.keys.map(x=>`<span>${x}</span>`).join('')}</div></button>`).join('');
+  $('#decks').querySelectorAll('.deck').forEach(b=>b.onclick=()=>newGame(b.dataset.k));
+  $('#gallery').onclick=showGallery;
+}
+function galleryCard(id,color){return cardFace(id,color,"")}
+function showGallery(){
+  const ov=$('#overlay');ov.hidden=false;
+  const done=Object.keys(SCENE).length,total=Object.keys(C).length;
+  ov.innerHTML=`<div class="box" style="max-width:900px"><h2>All cards</h2><p>${done} of ${total} have illustrated scenes.</p>
+    <div style="overflow-y:auto;max-height:65vh;display:flex;flex-direction:column;gap:14px">${Object.entries(DECKS).map(([k,dk])=>`<div><h3 style="font-family:var(--display);color:${dk.color};margin:0 0 8px;font-size:14px;letter-spacing:.06em">${dk.name}</h3><div style="display:flex;flex-wrap:wrap;gap:10px">${dk.list.map(([id])=>galleryCard(id,dk.color)).join('')}</div></div>`).join('')}</div>
+    <div class="row"><button class="btn" id="gclose">Close</button></div></div>`;
+  $('#gclose').onclick=()=>{ov.hidden=true};
+}
+function start(data){
+  pickScreen();
+  if(data&&data.G){G=data.G;$('#pick').hidden=true;$('#game').hidden=false;render()}
+}
+try{window.claude?.hot?.snapshot?.(()=>({G}))}catch(e){}
+window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
+</script>
+
+</body></html>

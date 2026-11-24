@@ -1,0 +1,44 @@
+{
+  "name": "tithe",
+  "productName": "Tithe",
+  "version": "0.1.0",
+  "description": "Tithe, a dark-fantasy card game where every card you play costs your deck",
+  "main": "electron/main.js",
+  "private": true,
+  "author": "Malik Spearman",
+  "scripts": {
+    "start": "electron .",
+    "prepare-game": "node tools/prepare.js",
+    "manifest": "node tools/manifest.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "@fontsource/cinzel": "5.3.0",
+    "@fontsource/source-sans-3": "5.3.1",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "three": "0.128.0"
+  },
+  "dependencies": {},
+  "build": {
+    "appId": "com.malikspearman.tithe",
+    "productName": "Tithe",
+    "copyright": "© 2026 Malik Spearman",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["electron/**", "game/**", "build/icon.png", "notes.json", "package.json"],
+    "asar": true,
+    "compression": "normal",
+    "mac": {
+      "category": "public.app-category.card-games",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "target": [{ "target": "dmg", "arch": ["universal"] }, { "target": "zip", "arch": ["universal"] }]
+    },
+    "dmg": { "title": "Tithe" },
+    "win": { "icon": "build/icon.ico", "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "shortcutName": "Tithe" },
+    "publish": [{ "provider": "github", "owner": "MalikSpearman", "repo": "Tithe-Game", "releaseType": "release" }]
+  }
+}

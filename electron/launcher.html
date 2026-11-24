@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Tithe</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' file: data:;">
+<link href="../game/vendor/fonts.css" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#070605;color:#efe4d2;overflow:hidden;font-family:'Source Sans 3',sans-serif;-webkit-user-select:none;user-select:none}
+button{font-family:inherit;cursor:pointer}
+.bg{position:absolute;inset:0;background:url(../game/img/title.webp) center 30%/cover;animation:drift 30s ease-in-out infinite alternate}
+@keyframes drift{from{transform:scale(1.01)}to{transform:scale(1.035)}}
+.shade{position:absolute;inset:0;background:linear-gradient(90deg,#070605cc 0%,#0706058a 26%,#07060500 48%,#07060500 72%,#07060555 100%),linear-gradient(180deg,#07060588 0%,#07060500 14%,#07060500 60%,#070605ee 100%)}
+.petals{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.petals i{position:absolute;bottom:-20px;width:4px;height:4px;border-radius:50%;background:#ffb04a;box-shadow:0 0 8px 2px #ff6a1acc;opacity:.8;animation:rise linear infinite}
+@keyframes rise{to{transform:translate(90px,-780px);opacity:0}}
+/* title bar */
+.tb{position:absolute;left:0;right:0;top:0;height:44px;display:flex;align-items:center;justify-content:flex-end;gap:2px;padding:0 6px;-webkit-app-region:drag;z-index:5}
+.tb .brand{position:absolute;left:18px;top:14px;font:700 11px/1 'Cinzel';letter-spacing:.34em;color:#e8c27a;opacity:.8}
+.tb button{-webkit-app-region:no-drag;width:40px;height:32px;border:0;background:none;color:#efe2cc;border-radius:6px;opacity:.75;display:grid;place-items:center}
+.tb button:hover{opacity:1;background:#ffffff18}.tb button.x:hover{background:#d43a3a}
+.tb svg{width:16px;height:16px}
+/* logo: the key art carries the TITHE wordmark, the tagline sits under it */
+.logo{position:absolute;left:var(--tagX,104px);top:var(--tagY,282px)}
+.logo div{font:600 12px/1 'Cinzel';letter-spacing:.38em;color:#e8c27a;opacity:.9;text-transform:uppercase;text-shadow:0 2px 6px #000}
+/* news */
+.news{position:absolute;left:46px;top:var(--newsY,316px);width:410px;bottom:118px;display:flex;flex-direction:column;gap:10px}
+.banner{height:150px;border-radius:10px;background:url(../game/img/stormcallers_bg.webp) center/cover;position:relative;overflow:hidden;box-shadow:0 8px 30px #0008,inset 0 0 0 1px #ffffff22;flex:none}
+.banner::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#0c0906ee,#0c090600 70%)}
+.banner b{position:absolute;left:14px;bottom:30px;z-index:1;font:400 24px/1 'Cinzel';letter-spacing:.02em;color:#fff;text-shadow:0 2px 0 #000}
+.banner span{position:absolute;left:14px;bottom:12px;z-index:1;font:600 12px/1 'Cinzel';letter-spacing:.2em;color:#e8c27a;text-transform:uppercase}
+.tabs{display:flex;gap:16px;border-bottom:1px solid #ffffff22;padding:0 2px;flex:none}
+.tabs button{background:none;border:0;color:#cdbb9c;font:700 14px/1 'Cinzel';letter-spacing:.16em;text-transform:uppercase;padding:8px 0;position:relative;opacity:.7}
+.tabs button.on{opacity:1;color:#e8c27a}.tabs button.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:linear-gradient(90deg,#ff8a1a,#ffc93d)}
+.list{flex:1;overflow:auto;padding-right:6px;display:flex;flex-direction:column;gap:2px}
+.list::-webkit-scrollbar{width:4px}.list::-webkit-scrollbar-thumb{background:#ffcf6a55;border-radius:3px}
+.it{background:#0f0b08c4;border:1px solid #ffffff12;border-radius:8px;padding:10px 12px;backdrop-filter:blur(6px)}
+.it h3{margin:0 0 4px;font:700 15px/1.15 'Cinzel';letter-spacing:.06em;color:#f6e7c8;display:flex;justify-content:space-between;gap:8px}
+.it h3 small{font:500 11px/1.4 'Source Sans 3';color:#b8a487;letter-spacing:0;white-space:nowrap}
+.it ul{margin:4px 0 0;padding-left:16px;font:500 12.5px/1.4 'Source Sans 3';color:#e0d3bd}
+.it li{margin:2px 0}
+.empty{font:500 13px/1.4 'Source Sans 3';opacity:.6;padding:10px 2px}
+/* bottom bar */
+.foot{position:absolute;left:0;right:0;bottom:0;height:104px;display:flex;align-items:center;gap:22px;padding:0 40px 0 46px;background:linear-gradient(0deg,#07050ff2,#07050f00)}
+.ver{font:600 12px/1.4 'Cinzel';letter-spacing:.14em;color:#b8a487;text-transform:uppercase;min-width:170px}
+.ver b{display:block;font-size:15px;color:#f6e7c8;letter-spacing:.1em}
+.prog{flex:1;display:flex;flex-direction:column;gap:7px;opacity:0;transition:opacity .25s}
+.prog.on{opacity:1}
+.prog .row{display:flex;justify-content:space-between;font:600 12.5px/1 'Cinzel';letter-spacing:.1em;color:#eadcc4;text-transform:uppercase}
+.prog .bar{height:8px;border-radius:5px;background:#ffffff14;overflow:hidden;box-shadow:inset 0 0 0 1px #ffffff1c}
+.prog .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff4a1a,#ff9a2a,#ffe0a0);border-radius:5px;transition:width .25s;box-shadow:0 0 12px #ff8a1a88}
+.prog.spin .bar i{width:28%;animation:sp 1.1s ease-in-out infinite}@keyframes sp{from{transform:translateX(-110%)}to{transform:translateX(380%)}}
+.mini{width:38px;height:38px;border-radius:50%;border:1px solid #ffffff33;background:#16100bcc;color:#efe2cc;display:grid;place-items:center;flex:none}
+.mini:hover{border-color:#ffcf6a;color:#fff}.mini svg{width:16px;height:16px}.mini[hidden]{display:none}
+.play{width:236px;height:62px;flex:none;border:0;border-radius:8px;position:relative;font:700 28px/1 'Cinzel';letter-spacing:.14em;color:#1b0f06;background:linear-gradient(180deg,#ffe6a8,#ffb23d 55%,#ff8a1a);box-shadow:0 0 0 2px #ffe2a0 inset,0 6px 0 #a3480f,0 10px 26px #ff8a1a66;transition:transform .12s,filter .12s}
+.play:hover{filter:brightness(1.08);transform:translateY(-1px)}.play:active{transform:translateY(3px);box-shadow:0 0 0 2px #ffe2a0 inset,0 3px 0 #a3480f}
+.play:disabled{filter:grayscale(.75) brightness(.7);cursor:default;transform:none}
+.play small{display:block;font:700 11px/1 'Cinzel';letter-spacing:.24em;margin-top:3px;opacity:.75}
+/* settings */
+.ov{position:absolute;inset:0;background:#050403cc;display:none;align-items:center;justify-content:center;z-index:9}
+.ov.on{display:flex}
+.panel{width:520px;background:#130e0a;border:1px solid #ffcf6a55;border-radius:12px;box-shadow:0 20px 60px #000c;padding:22px 24px}
+.panel h2{margin:0 0 14px;font:400 26px/1 'Cinzel';letter-spacing:.06em;color:#e8c27a}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid #ffffff12}
+.opt b{display:block;font:700 15px/1.1 'Cinzel';letter-spacing:.08em;text-transform:uppercase}.opt small{font:500 12px/1.35 'Source Sans 3';opacity:.65}
+.sw{width:44px;height:24px;border-radius:12px;background:#2e2419;position:relative;flex:none;cursor:pointer;box-shadow:inset 0 0 0 1px #ffffff33}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s}.sw.on{background:linear-gradient(90deg,#ff8a1a,#ffc93d)}.sw.on::after{left:23px}
+.seg{display:flex;gap:4px}.seg button,.btn{border:1px solid #ffffff33;background:#1f1710;color:#efe2cc;border-radius:6px;padding:7px 11px;font:700 12px/1 'Cinzel';letter-spacing:.1em;text-transform:uppercase}
+.seg button.on{background:linear-gradient(#e8c27a,#ff8a2b);color:#130e0a;border-color:#e8c27a}.btn:hover,.seg button:hover{border-color:#ffcf6a}
+.panel .acts{display:flex;justify-content:flex-end;margin-top:16px}
+.toast{position:absolute;right:40px;bottom:116px;background:#16100bee;border:1px solid #ffcf6a66;border-radius:8px;padding:10px 14px;font:500 13px/1.3 'Source Sans 3';opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;max-width:380px}
+.toast.on{opacity:1;transform:none}
+</style></head>
+<body>
+<div class="bg"></div><div class="shade"></div><div class="petals" id="pt"></div>
+<div class="tb"><div class="brand">TITHE · LAUNCHER</div>
+  <button id="gear" title="Launcher settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.5 7.5 0 000-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 00-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 00-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 000 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 001.7 1L11 21h4l.4-2.9a7.4 7.4 0 001.7-1l2.5 1 2-3.5zM13 15.5A3.5 3.5 0 1113 8.5a3.5 3.5 0 010 7z"/></svg></button>
+  <button id="min" title="Minimize"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 11h14v2H5z"/></svg></button>
+  <button id="cls" class="x" title="Close"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.4 5L12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4L12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/></svg></button>
+</div>
+<div class="logo"><div>Every card has a price</div></div>
+<div class="news">
+  <div class="banner" id="ban"><b id="banT">Tithe</b><span id="banS">Playtest</span></div>
+  <div class="tabs"><button class="on" data-t="notes">Patch notes</button><button data-t="info">Info</button></div>
+  <div class="list" id="list"><div class="empty">Loading news…</div></div>
+</div>
+<div class="foot">
+  <div class="ver" id="ver">Version<b>–</b></div>
+  <div class="prog spin" id="prog"><div class="row"><span id="pl">Checking for updates…</span><span id="pr"></span></div><div class="bar"><i id="pf"></i></div></div>
+  <button class="mini" id="pz" hidden title="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg></button>
+  <button class="play" id="play" disabled>PLAY</button>
+</div>
+<div class="toast" id="toast"></div>
+<div class="ov" id="ov"><div class="panel"><h2>Launcher settings</h2>
+  <div class="opt"><span><b>Update automatically</b><small>Download new versions as soon as the launcher finds them.</small></span><i class="sw" id="pAuto"></i></div>
+  <div class="opt"><span><b>When the game starts</b><small>What the launcher does while you play. It comes back when you close the game.</small></span><div class="seg" id="pAfter"><button data-v="hide">Hide</button><button data-v="minimize">Minimize</button><button data-v="close">Close</button></div></div>
+  <div class="opt"><span><b>Repair game files</b><small>Checks every file and re-downloads anything damaged or missing.</small></span><button class="btn" id="vfy">Verify</button></div>
+  <div class="opt"><span><b>Game files</b><small>Where updates are stored on this computer.</small></span><button class="btn" id="fold">Open folder</button></div>
+  <div class="acts"><button class="btn" id="ovx">Done</button></div>
+</div></div>
+<script>
+const $=id=>document.getElementById(id), L=window.launcher;
+const MB=b=>(b/1048576).toFixed(b>1048576*100?0:1)+' MB';
+const tm=s=>!isFinite(s)||s<=0?'':s<60?Math.ceil(s)+'s left':Math.ceil(s/60)+' min left';
+let S={}; const toast=t=>{ const e=$('toast'); e.textContent=t; e.classList.add('on'); clearTimeout(e._t); e._t=setTimeout(()=>e.classList.remove('on'),3800); };
+for(let i=0;i<26;i++){ const p=document.createElement('i'); p.style.left=(40+Math.random()*65)+'%'; p.style.animationDuration=(7+Math.random()*9)+'s'; p.style.animationDelay=(-Math.random()*16)+'s'; p.style.transform=`scale(${.5+Math.random()*1})`; $('pt').appendChild(p); }
+// keep the tagline and news under the TITHE wordmark painted into the key art (1400×781, cover, 30% from the top)
+function place(){ const W=innerWidth,H=innerHeight,s=Math.max(W/1400,H/781),ox=(W-1400*s)/2,oy=(H-781*s)*.3, r=document.documentElement.style;
+  r.setProperty('--tagX',Math.round(ox+112*s)+'px'); r.setProperty('--tagY',Math.round(oy+300*s)+'px'); r.setProperty('--newsY',Math.round(oy+300*s+34)+'px'); }
+addEventListener('resize',place); place();
+function render(){ const s=S; $('ver').innerHTML=`Version<b>${s.version||'–'}${s.state==='available'?` → ${s.remote}`:''}</b>`;
+  const pg=$('prog'), play=$('play'), pz=$('pz');
+  pz.hidden=s.phase!=='download';
+  if(s.phase==='download'||s.phase==='verify'){ pg.className='prog on'; const k=s.total?s.done/s.total:0; $('pf').style.width=(k*100)+'%';
+    $('pl').textContent=s.phase==='verify'?'Checking game files…':(s.paused?'Paused':`Downloading v${s.remote}`);
+    $('pr').textContent=s.phase==='verify'?`${s.done} / ${s.total}`:`${MB(s.done)} / ${MB(s.total)}${s.speed&&!s.paused?` · ${MB(s.speed)}/s · ${tm((s.total-s.done)/s.speed)}`:''}`;
+    play.disabled=true; play.innerHTML='UPDATING<small>please wait</small>'; pz.innerHTML=s.paused?'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg>':'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>'; pz.title=s.paused?'Resume':'Pause'; return; }
+  if(s.state==='checking'){ pg.className='prog on spin'; $('pl').textContent='Checking for updates…'; $('pr').textContent=''; play.disabled=true; play.innerHTML='PLAY'; return; }
+  if(s.state==='available'){ pg.className='prog on'; $('pf').style.width='0%'; $('pl').textContent=`Update available: v${s.remote}`; $('pr').textContent=`${s.count} files · ${MB(s.size)}`; play.disabled=false; play.innerHTML=`UPDATE<small>${MB(s.size)}</small>`; return; }
+  pg.className='prog'+(s.state==='offline'?' on':''); $('pf').style.width='100%'; $('pl').textContent=s.state==='offline'?'Offline: playing your installed version':''; $('pr').textContent='';
+  play.disabled=!!s.running; play.innerHTML=s.running?'RUNNING<small>game is open</small>':'PLAY'; }
+L.on(ev=>{ if(ev.type==='state'){ S=Object.assign(S,ev.state); render(); } if(ev.type==='toast') toast(ev.text); });
+$('play').onclick=()=>{ if(S.state==='available') L.update(); else L.play(); };
+$('pz').onclick=()=>{ S.paused?L.resume():L.pause(); };
+$('min').onclick=()=>L.win('min'); $('cls').onclick=()=>L.win('close');
+$('gear').onclick=()=>{ $('ov').classList.add('on'); }; $('ovx').onclick=()=>$('ov').classList.remove('on');
+$('vfy').onclick=()=>{ $('ov').classList.remove('on'); L.verify(); }; $('fold').onclick=()=>L.openFolder();
+$('pAuto').onclick=e=>{ const on=!e.target.classList.contains('on'); e.target.classList.toggle('on',on); L.setPref('auto',on); };
+$('pAfter').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('pAfter').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); L.setPref('after',b.dataset.v); });
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b)); show(b.dataset.t); });
+let NOTES=[];
+function show(t){ const l=$('list'); l.innerHTML='';
+  if(t==='info'){ l.innerHTML=`<div class="it"><h3>Controls</h3><ul><li>F11 or Alt+Enter toggles fullscreen</li><li>F12 opens the developer tools</li><li>Everything else plays exactly like the web version</li></ul></div><div class="it"><h3>Saves</h3><ul><li>Saved on this computer and kept across updates</li><li>Online duels and trading use the same servers as play.tithecardgame.com</li></ul></div>`; return; }
+  if(!NOTES.length){ l.innerHTML='<div class="empty">No patch notes yet.</div>'; return; }
+  NOTES.forEach(n=>{ const d=document.createElement('div'); d.className='it'; d.innerHTML=`<h3><span>v${n.version}${n.title?' · '+n.title:''}</span><small>${n.date||''}</small></h3><ul>${(n.items||[]).map(x=>`<li>${x}</li>`).join('')}</ul>`; l.appendChild(d); }); }
+(async()=>{ S=await L.state(); $('pAuto').classList.toggle('on',S.prefs.auto!==false); $('pAfter').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.v===(S.prefs.after||'hide'))); render();
+  NOTES=await L.notes()||[]; if(NOTES[0]){ $('banT').textContent=NOTES[0].title||('Version '+NOTES[0].version); $('banS').textContent='Latest update · v'+NOTES[0].version; } show('notes'); L.check(); })();
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!$('play').disabled) $('play').click(); if(e.key==='Escape') $('ov').classList.remove('on'); });
+</script></body></html>
