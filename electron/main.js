@@ -23,6 +23,16 @@ const BOOT = { uncapped: S.uncapped, vsync: S.vsync };   // switches that only t
 // Frame-rate switches have to be set before the app is ready.
 if (S.uncapped) app.commandLine.appendSwitch('disable-frame-rate-limit');
 if (!S.vsync) app.commandLine.appendSwitch('disable-gpu-vsync');
+// Smoothness on PC and Mac (animation overhaul 2026-11-25): draw on the graphics card even where Chromium's blocklist is cautious,
+// raster tiles on the GPU, and never slow the game's timers or frames down when the window is behind another one.
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// a bigger image-decode cache so card art, cut-outs and boards stay decoded between duels (the desktop app has no storage cap)
+app.commandLine.appendSwitch('force-gpu-mem-available-mb', '2048');
 
 let win;
 const pickDisplay = () => screen.getAllDisplays().find(d => String(d.id) === String(S.display)) || screen.getPrimaryDisplay();
