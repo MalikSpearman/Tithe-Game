@@ -27,8 +27,10 @@ if (!S.vsync) app.commandLine.appendSwitch('disable-gpu-vsync');
 let win;
 const pickDisplay = () => screen.getAllDisplays().find(d => String(d.id) === String(S.display)) || screen.getPrimaryDisplay();
 
+let switching = false;   // true while applyDisplay moves the window, so its own resize/fullscreen events aren't taken as the player's choice
 function applyDisplay() {
   if (!win) return;
+  switching = true; clearTimeout(applyDisplay.t); applyDisplay.t = setTimeout(() => { switching = false; }, 1600);
   const d = pickDisplay();
   const goWindowed = () => {
     const wa = d.workArea, k = d.scaleFactor || 1;
@@ -82,7 +84,17 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('app://')) { e.preventDefault(); shell.openExternal(url); } });
   const changed = () => { try { win.webContents.send('ls:changed', info()); } catch (e) {} };
-  win.on('enter-full-screen', changed); win.on('leave-full-screen', changed);
+  // the Mac's green button (or the OS) switching fullscreen counts as the player's choice too, unless applyDisplay is mid-switch
+  win.on('enter-full-screen', () => { if (!switching && S.mode === 'windowed') { S.mode = 'fullscreen'; store(S); } changed(); });
+  win.on('leave-full-screen', () => { if (!switching && S.mode === 'fullscreen') { S.mode = 'windowed'; store(S); } changed(); });
+  // a window resized by dragging its edge keeps that size next launch (stored in real pixels, like the Settings sizes)
+  let rz = null;
+  win.on('resize', () => { clearTimeout(rz); rz = setTimeout(() => {
+    if (switching || S.mode !== 'windowed' || win.isMaximized() || win.isFullScreen() || win.isMinimized()) return;
+    const k = screen.getDisplayMatching(win.getBounds()).scaleFactor || 1, [w, h] = win.getContentSize();
+    const W = Math.round(w * k), H = Math.round(h * k); if (W !== S.width || H !== S.height) { S.width = W; S.height = H; store(S); changed(); }
+  }, 400); });
+  win.on('moved', () => { if (switching || S.mode !== 'windowed') return; const d = screen.getDisplayMatching(win.getBounds()); if (String(d.id) !== String(S.display)) { S.display = String(d.id); store(S); } });
   win.on('maximize', () => { if (S.mode === 'windowed') { S.maximized = true; store(S); } });
   win.on('unmaximize', () => { if (S.mode === 'windowed') { S.maximized = false; store(S); } });
   // F11, Alt+Enter or Ctrl+Cmd+F flips between windowed and fullscreen (and remembers it); F12 opens dev tools

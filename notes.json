@@ -1,7 +1,24 @@
 [
-  {"version":"0.1.0","date":"Nov 24, 2026","title":"The Desktop Launcher","items":[
-    "Tithe now has its own desktop app for Mac and Windows, opening into a launcher with patch notes and one-click updates",
-    "Updates download only the files that changed, and pick up where they left off if you close the launcher mid-download",
-    "Launcher settings: auto-update, repair game files, and hide/minimize/close while you play",
-    "Includes everything on play.tithecardgame.com: The Uncounted deck, the Shambler cap (3 per side), attack-in-one-tap, faster banner summons, card previews while searching, and daily deals that refresh together"]}
+ {
+  "version": "0.1.1",
+  "date": "Nov 25, 2026",
+  "title": "Desktop Settings",
+  "items": [
+   "New desktop settings in the More menu: Windowed, Fullscreen (and Borderless on Mac), window size from 1280×720 up to 4K, monitor choice, and frame rate (match your screen or unlimited)",
+   "Tithe remembers how you left it: window mode, window size (including sizes you drag yourself), monitor and frame rate all carry over to the next launch",
+   "Quit to desktop from the More menu",
+   "F11 or Alt+Enter still toggles fullscreen at any time"
+  ]
+ },
+ {
+  "version": "0.1.0",
+  "date": "Nov 24, 2026",
+  "title": "The Desktop Launcher",
+  "items": [
+   "Tithe now has its own desktop app for Mac and Windows, opening into a launcher with patch notes and one-click updates",
+   "Updates download only the files that changed, and pick up where they left off if you close the launcher mid-download",
+   "Launcher settings: auto-update, repair game files, and hide/minimize/close while you play",
+   "Includes everything on play.tithecardgame.com: The Uncounted deck, the Shambler cap (3 per side), attack-in-one-tap, faster banner summons, card previews while searching, and daily deals that refresh together"
+  ]
+ }
 ]

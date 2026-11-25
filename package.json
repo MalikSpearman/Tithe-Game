@@ -1,7 +1,7 @@
 {
   "name": "tithe",
   "productName": "Tithe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Tithe, a dark-fantasy card game where every card you play costs your deck",
   "main": "electron/main.js",
   "private": true,

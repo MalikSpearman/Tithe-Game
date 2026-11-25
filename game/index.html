@@ -2795,8 +2795,12 @@ html.gfx-low #home .h3 *,html.gfx-low #home .h3::before,html.gfx-low #home .h3::
 .gfx-row{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
 .gfx-seg{display:inline-flex;flex-wrap:wrap;margin-top:6px;border-radius:999px;padding:3px;background:rgba(0,0,0,.35);box-shadow:inset 0 0 0 1px #6b5a3e}
 .gfx-seg button{border:0;background:none;color:#cbbd9f;font:600 13px/1 var(--body,inherit);padding:8px 12px;border-radius:999px;cursor:pointer;min-height:34px}
-.gfx-seg button.on{background:linear-gradient(180deg,#e9c874,#b98f3e);color:#1d140a}
+.gfx-seg button.on{background:linear-gradient(180deg,#e9c874,#b98f3e);color:#1d140a;padding-inline:20px} /* room for the gold button's end caps */
 .gfx-seg button:focus-visible{outline:2px solid #f3d98a;outline-offset:2px}
+/* desktop app rows in the More sheet (js/menu/desktop_settings.js): a hint line under the name, unavailable sizes dimmed; the sheet scrolls when they make it tall */
+.desk-row small{color:#a8987a;font-size:12px;line-height:1.3}
+.gfx-seg button:disabled{opacity:.38;cursor:default}
+.h3more{max-height:calc(100dvh - 32px);overflow-y:auto}
 /* ===== zz_menuskin.css ===== */
 /* ---------- Main menu skin: Fab "GUI Parts" (PONETI) frames and carved buttons. Active once the art loads (html.gpskin). ---------- */
 /* Duel: carved red stone in an iron frame */
@@ -17981,6 +17985,7 @@ function h3More(){const ov=document.getElementById('overlay');if(!ov)return;ov.h
   const it=[['mTut','Tutorial','Every rule in two minutes'],['mRules','How to play','Costs, lanes, positions, the gist'],['mQuick','Random duel','Random deck, straight to the table'],['mStory','Story','Chapters and the Hunter’s Road'],['mLadder','Duel Ladder','Climb the rival ladders']];
   ov.innerHTML=`<div class="box h3more" role="dialog" aria-label="More"><h3>More</h3>${it.map(([id,b,s])=>`<button class="h3m" data-p="${id}"><b>${b}</b><small>${s}</small></button>`).join('')}<button class="btn h3mx">Close</button></div>`;
   try{GFX.rows(ov.querySelector('.h3more'))}catch(e){}  // Graphics and Summon animations (engine/gfx.js)
+  try{DESKSET.rows(ov.querySelector('.h3more'))}catch(e){}  // desktop app: window mode, size, monitor, frame rate, Quit (menu/desktop_settings.js)
   ov.onclick=e=>{if(e.target===ov)closeOverlay()};ov.querySelector('.h3mx').onclick=()=>closeOverlay();
   ov.querySelectorAll('.h3m').forEach(b=>b.onclick=()=>{closeOverlay();setTimeout(()=>press(b.dataset.p),60)})}
 function h3Icons(){const ico={decks:'#mCards .uki',pass:'#mPass .uki',store:'#mStore .uki'};let ok=true;for(const k in ico){const s=document.querySelector(ico[k]),i=document.querySelector('.h3 .h3i-'+k);const u=s&&s.getAttribute('src');if(i&&u){const v=`url("${u}")`;if(i.style.backgroundImage!==v)i.style.backgroundImage=v}else ok=false}return ok}
@@ -25223,7 +25228,7 @@ var CLK={max:240,turn:60,opp:30};
 
 // ===== ui_9z_zstamp.js =====
 // ---------- Build stamp: lets two online players see which of them runs the newer build ----------
-var TITHE_STAMP=1795369876; // build time, written by the build step (used to tell which of two online players is on the newer version)
+var TITHE_STAMP=1795629012; // build time, written by the build step (used to tell which of two online players is on the newer version)
 
 // ===== ui_9z_shortcode.js =====
 // ---------- Short online codes: every online match is joined with a 5-digit number.
@@ -37624,6 +37629,41 @@ document.addEventListener('click',e=>{if(PF.o&&e.target&&e.target.closest&&e.tar
   if(bad.length)console.warn('deck mix:',bad.join(' | '));window.DECK_MIX_BAD=bad;
   try{if(typeof POOL!=='undefined')POOL=null}catch(e){}
 }catch(e){console.warn('deck mix',e)}})();
+// ===== desktop_settings.js =====
+// ---------- Desktop settings: window mode, window size, monitor, frame rate and Quit in the More sheet (desktop app only) ----------
+// The desktop app (Tithe-Game repo, electron/main.js) keeps these in its own settings file, so the game opens the same way next time:
+// windowed or fullscreen, the chosen window size on the chosen monitor, and the frame-rate switch. Resizing the window by hand is
+// remembered too. In the browser window.titheDesktop is missing and none of these rows appear.
+const DESKSET=(function(){
+  const D=window.titheDesktop||null;
+  const RES=[[1280,720,'HD'],[1366,768,''],[1600,900,'HD+'],[1920,1080,'Full HD'],[2560,1080,'Ultrawide'],[2560,1440,'QHD'],[3440,1440,'Ultrawide QHD'],[3840,2160,'4K']];
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const row=(name,sub,key,opts,cur)=>`<div class="h3m gfx-row desk-row"><b>${name}</b>${sub?`<small>${esc(sub)}</small>`:''}<span class="gfx-seg" role="radiogroup" aria-label="${name}">${
+    opts.map(([v,l,dis,tip])=>{const on=cur!=null&&String(v)===String(cur);return `<button type="button" role="radio" data-k="${key}" data-v="${v}" aria-checked="${on}" class="${on?'on':''}"${dis?' disabled':''}${tip?` title="${esc(tip)}"`:''}>${l}</button>`}).join('')}</span></div>`;
+  function draw(box,I){
+    box.querySelectorAll('.desk-row').forEach(r=>r.remove());
+    const S=I.settings,mon=I.displays.find(x=>x.id===String(S.display||I.current))||I.displays[0],fs=S.mode!=='windowed',hz=mon.hz||60;
+    const modes=[['windowed','Windowed'],['fullscreen','Fullscreen']];if(D.platform==='darwin')modes.push(['borderless','Borderless',0,'Fullscreen that stays on this desktop instead of opening its own Space']);
+    let html=row('Window','F11 or Alt+Enter switches at any time.','mode',modes,S.mode);
+    if(I.displays.length>1)html+=row('Monitor','Which screen the game opens on.','display',I.displays.map(x=>[x.id,`${x.index}${x.primary?' (main)':''}: ${x.width}×${x.height}`]),mon.id);
+    html+=row('Window size',fs?`Fullscreen uses this screen’s ${mon.width}×${mon.height}. Pick Windowed to choose a size.`:`This screen is ${mon.width}×${mon.height}. Dragging the window’s edge is remembered too.`,'res',
+      RES.map(([w,h,tag])=>{const big=w>mon.maxW||h>mon.maxH;return [w+'x'+h,`${w}×${h}`,fs||big,big?'Bigger than this screen':tag]}),fs?null:S.width+'x'+S.height);
+    html+=row('Frame rate',`This screen refreshes at ${hz} Hz.`,'fr',[['screen',`Match screen (${hz} Hz)`],['u','Unlimited']],S.uncapped?'u':'screen');
+    if(I.restart)html+=row('Restart needed','The frame-rate change takes effect after a restart.','restart',[['1','Restart now']],null);
+    html+=row('Quit','Close Tithe. Your progress is saved.','quit',[['1','Quit to desktop']],null);
+    const wrap=document.createElement('div');wrap.innerHTML=html;const close=box.querySelector('.h3mx');
+    [...wrap.children].forEach(r=>{if(close)box.insertBefore(r,close);else box.appendChild(r)});
+    box.querySelectorAll('.desk-row .gfx-seg button').forEach(b=>b.onclick=async ev=>{ev.stopPropagation();if(b.disabled)return;const k=b.dataset.k,v=b.dataset.v;
+      try{if(typeof sfx==='function')sfx('click')}catch(e){}
+      if(k==='quit'){setTimeout(()=>D.quit(),120);return}
+      if(k==='restart'){D.relaunch();return}
+      const patch=k==='mode'?{mode:v}:k==='display'?{display:v}:k==='fr'?(v==='u'?{uncapped:true,vsync:false}:{uncapped:false,vsync:true})
+        :(()=>{const [w,h]=v.split('x').map(Number);return {width:w,height:h,maximized:false}})();
+      try{draw(box,await D.apply(patch))}catch(e){}})}
+  const rows=async box=>{if(!D||!box||box.querySelector('.desk-row'))return;try{draw(box,await D.info())}catch(e){}};
+  // the window was resized, maximized or switched to fullscreen from outside the sheet: keep an open sheet in step
+  if(D&&D.onChange)D.onChange(I=>{const b=document.querySelector('.h3more');if(b&&b.querySelector('.desk-row'))try{draw(b,I)}catch(e){}});
+  return {on:!!D,rows}})();
 /*END_EXP_UI*/
 // Ability announcements hold every redraw until they've been shown (duel-ui/announce.js). Installed here, after every module, so it
 // wraps the finished render(): always the outermost layer, whatever modules are added later.
