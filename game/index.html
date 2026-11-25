@@ -3068,6 +3068,12 @@ body.b3phone .b3ph small{font-size:8px}
 body.b3phone .b3insp{left:8px;top:8px;width:min(270px,calc((100dvh - 20px)/1.27))}
 /* the live board (phase 2): the DOM board stays underneath, invisible, each lane / slot / pile moved over its 3D slot to take the taps */
 body.b3live #game .tstage{transform:none}
+/* The flat table under the 3D board is invisible (tap targets and the source of the hit/shake animations the 3D faces copy), so its
+   endless glows, pulses, foils and icon flickers only cost a restyle and repaint every frame. They are off while the 3D board is live; the
+   one-shot animations (summon, hit, lunge, shake...) still run and are still mirrored (animation overhaul 2026-11-25). */
+body.b3live #game :is(.lane.open,.lane.cre.selected,.lane.cre.targetable,.lane.atki-tgt,.sslot.open,.sslot.canact,.sslot.targetable):not(.arrive,.flip,.lunge-down,.lunge-up,.mmflash,.purge-flash,.shake,.slammed,.spawn),
+body.b3live #game :is(.lane.cre .dot,.lane .glowring,.lane.cre .ico,.lane .cando,.fzone .fa),
+body.b3live #game :is(.lane,.sslot) .card::after,body.b3live #game :is(.lane,.sslot) .card::before,body.b3live #game .lane.cre::after,body.b3live #game .lane .art::after{animation:none}
 body.b3dprev.b3live #game .tstage>.board.mat{visibility:visible;opacity:0;pointer-events:none}
 body.b3live #game .tstage>.board.mat .lane,body.b3live #game .tstage>.board.mat .sslot,body.b3live #game .tstage>.board.mat>.mz{pointer-events:auto;z-index:2}
 @media (prefers-reduced-motion:reduce){.b3insp.on{animation:none}}
@@ -13064,7 +13070,7 @@ function fx3Load(){if(FX3.T)return Promise.resolve(FX3.T);if(FX3.loading)return 
   FX3.loading=new Promise((res,rej)=>{const go=i=>{if(i>=SRC.length){FX3.ok=false;FX3.loading=null;return rej()}const s=document.createElement('script');s.src=SRC[i];s.async=true;
     s.onload=()=>{if(window.THREE){FX3.T=window.THREE;res(FX3.T)}else go(i+1)};s.onerror=()=>{s.remove();go(i+1)};document.head.appendChild(s)};go(0)});return FX3.loading}
 function fx3Init(){if(FX3.r)return true;const T=FX3.T;if(!T)return false;try{
-  const r=new T.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});r.setPixelRatio(Math.min(2,devicePixelRatio||1));r.setClearColor(0,0);
+  const r=new T.WebGLRenderer({alpha:true,antialias:true,powerPreference:window.TITHE_DESKTOP?'high-performance':'low-power'}); /* desktop app: the same graphics chip as the 3D board (two contexts on two chips of a dual-GPU Mac copy frames between them) */r.setPixelRatio(Math.min(2,devicePixelRatio||1));r.setClearColor(0,0);
   const c=r.domElement;c.className='fx3d';c.setAttribute('aria-hidden','true');c.style.visibility='hidden';document.body.appendChild(c); // shown only while something is on it (fx3Add / fx3Loop): a blank full-screen layer still costs the graphics card every frame
   FX3.r=r;FX3.scene=new T.Scene();FX3.cam=new T.PerspectiveCamera(40,1,1,6000);fx3Size();addEventListener('resize',fx3Size);
   FX3.scene.add(new T.AmbientLight(0xffffff,.55));const dl=new T.DirectionalLight(0xffffff,.9);dl.position.set(200,400,900);FX3.scene.add(dl);return true}catch(e){FX3.ok=false;return false}}
@@ -14264,7 +14270,11 @@ function bossCutin(id,side,label){
 // preload the cut-outs for both decks so the hero is ready the moment it is summoned
 function bossCutPreload(){try{loadCutpack();[G.me,G.ai].forEach(p=>{const dk=p&&DECKS[p.deckId];if(!dk)return;
   const ids=[...(dk.list||[]).map(x=>Array.isArray(x)?x[0]:x),...(dk.extra||[])];
-  ids.forEach(id=>{const s=bossCutSrc(id);if(s){const i=new Image();i.decoding='async';i.src=s}})})}catch(e){}}
+  ids.forEach(id=>{const s=bossCutSrc(id);if(s)bossCutKeep(s)})});bossCutKeep('img/bc_stroke.webp')}catch(e){}}
+// each cut-out is decoded ahead and held for the duel (animation overhaul 2026-11-25): an Image that is only fetched can be dropped from the
+// decoded-image cache, and then the cut-in decodes it on the frame it slams in, the hitch at the summon
+const BCKEEP=new Map();function bossCutKeep(s){if(BCKEEP.has(s))return;if(BCKEEP.size>220)BCKEEP.delete(BCKEEP.keys().next().value);
+  const i=new Image();i.decoding='async';i.src=s;BCKEEP.set(s,i);if(i.decode)i.decode().catch(()=>{})}
 {hookPost('newGame',function(r,...x){setTimeout(bossCutPreload,50);return r})}
 // painted legends had no summon moment at all: give them the cut-in too
 {const _af=applyFx;applyFx=function(){const q=((G&&G.fx)||[]).filter(f=>f.k==='spawn'&&f.side).map(f=>({side:f.side,lane:f.lane}));const r=_af.apply(this,arguments);
@@ -20682,8 +20692,23 @@ function st3Face(el,id){
     const live=el&&el.querySelector('.fst,.stats');let atk=d.atk,def=d.def;try{const m=(live&&live.textContent||'').match(/(\d+)\D+(\d+)/);if(m){atk=m[1];def=m[2]}}catch(e){}
     x.fillStyle='#ff8a6a';x.textAlign='left';x.fillText(String(atk),26,577);x.fillStyle='#9fd0ff';x.textAlign='right';x.fillText(String(def),454,577)}
   x.restore();x.strokeStyle='rgba(255,226,170,.85)';x.lineWidth=5;rr(2.5,2.5,475,601,24);x.stroke();return cv}
-function st3Setup(T){if(ST3.setup)return;ST3.setup=true;const r=FX3.r;r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;
+function st3Setup(T){if(ST3.setup)return;ST3.setup=true;const r=FX3.r,S=FX3.scene;r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;
+  // the stage's key light (with its shadow) and the impact light stay in the effects scene for good, dark between swings: adding and
+  // removing lights changes the light count, and three.js then recompiles every lit material, a hitch on the first swing (animation overhaul 2026-11-25)
+  const key=new T.DirectionalLight(0xfff0d8,0);key.position.set(-260,360,900);key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.bias=-.002;
+  const sc=key.shadow.camera;sc.near=200;sc.far=2600;S.add(key);S.add(key.target);const hitL=new T.PointLight(0xffffff,0,1000,2);S.add(hitL);ST3.key=key;ST3.hitL=hitL;
   st3Img('img/back.webp').then(im=>{if(im){const t=new T.Texture(im);t.needsUpdate=true;ST3.back=t}})}
+// compile the swing's shaders while a duel loads, so the first attack of a session doesn't stall on them. The warm-up materials are kept
+// (never disposed): three.js deletes a compiled program when its last material is disposed, and each swing disposes its own.
+function st3Warm(){try{if(ST3.warm||!stage3dOK())return;const T=FX3.T,S=FX3.scene;st3Setup(T);
+    const cv=document.createElement('canvas');cv.width=cv.height=4;const tex=new T.CanvasTexture(cv);
+    const mats=[new T.MeshStandardMaterial({color:0x3a2a18,roughness:.5,metalness:.55}),new T.MeshStandardMaterial({map:tex,emissive:0xffffff,emissiveMap:tex,emissiveIntensity:.38,roughness:.32,metalness:.12}),
+      new T.MeshStandardMaterial({map:tex,roughness:.5,metalness:.1}),new T.MeshStandardMaterial({color:0x2a1d14,roughness:.5,metalness:.1})];
+    const grp=new T.Group(),card=new T.Mesh(new T.BoxGeometry(10,14,1),[mats[0],mats[0],mats[0],mats[0],mats[1],mats[2]]);card.castShadow=true;grp.add(card);
+    const alt=new T.Mesh(new T.BoxGeometry(10,14,1),mats[3]);alt.castShadow=true;grp.add(alt);
+    const fm=new T.ShadowMaterial({opacity:.5}),floor=new T.Mesh(new T.PlaneGeometry(20,20),fm);floor.receiveShadow=true;grp.add(floor);
+    const sp=new T.SpriteMaterial({map:glowTex(T),transparent:true,blending:T.AdditiveBlending,depthWrite:false});grp.add(new T.Sprite(sp));const rb=st3Ribbon(T,4,4,[1,1,1],[1,1,1]);grp.add(rb);
+    S.add(grp);FX3.r.compile(S,FX3.cam);S.remove(grp);ST3.warm={mats,fm,sp,rbm:rb.material}}catch(e){}}
 // a ribbon of light behind a moving point: n samples, tapering, additive
 function st3Ribbon(T,n,w,colHead,colTail){const pos=new Float32Array(n*2*3),col=new Float32Array(n*2*3),idx=[];
   for(let i=0;i<n-1;i++){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2)}
@@ -20717,10 +20742,10 @@ function stage3dAttack(X){const {g,o,a,tl,L,el,tEl,col,fancy,lane,up}=X;const T=
   const ec=new T.Color(col);
   const aura=new T.Sprite(new T.SpriteMaterial({map:glowTex(T),color:ec,transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false}));aura.scale.set(cw*2.6,ch*2.3,1);aura.position.z=-3;grp.add(aura);
   // light and shadow
-  const key=new T.DirectionalLight(0xfff0d8,.75);key.position.set(-260,360,900);key.castShadow=true;key.shadow.mapSize.set(1024,1024);const sc=key.shadow.camera,E=Math.max(FX3.W,FX3.H)*.75;
-  sc.left=-E;sc.right=E;sc.top=E;sc.bottom=-E;sc.near=200;sc.far=2600;key.shadow.bias=-.002;S.add(key);S.add(key.target);
+  const key=ST3.key;key.intensity=.75;const sc=key.shadow.camera,E=Math.max(FX3.W,FX3.H)*.75;
+  sc.left=-E;sc.right=E;sc.top=E;sc.bottom=-E;sc.updateProjectionMatrix();
   const floor=new T.Mesh(new T.PlaneGeometry(FX3.W*1.6,FX3.H*1.6),new T.ShadowMaterial({opacity:.5}));floor.receiveShadow=true;S.add(floor);
-  const hitL=new T.PointLight(ec,0,Math.max(cw,ch)*6,2);S.add(hitL);
+  const hitL=ST3.hitL;hitL.color.copy(ec);hitL.intensity=0;hitL.distance=Math.max(cw,ch)*6;
   const DIR=!tEl,rb=st3Ribbon(T,DIR?22:16,cw*(DIR?.56:.42),[1,1,1],[ec.r,ec.g,ec.b]),rb2=st3Ribbon(T,DIR?22:16,cw*(DIR?.22:.16),[1,1,.95],[1,.95,.85]);S.add(rb);S.add(rb2);
   el.style.visibility='hidden';
   // never longer than the swing itself: if its end is lost (an online board rebuilt mid-swing), the card comes back after 4 s instead of
@@ -20735,7 +20760,7 @@ function stage3dAttack(X){const {g,o,a,tl,L,el,tEl,col,fancy,lane,up}=X;const T=
   const ease=t=>1-Math.pow(1-t,3),io=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,bo=t=>{const c=1.4;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2)};
   const place=(sx,sy,z,rx,r,s)=>{const [wx,wy]=W(x0+sx,y0+sy);grp.position.set(wx,wy,z);card.rotation.set(rx,0,r);grp.scale.setScalar(s||1)};
   setTimeout(()=>{try{AU.pan=(o.field.indexOf(a)-2)*.32;sfx('whoosh');AU.pan=0}catch(e){}},tL+tH*.5);
-  const cleanup=()=>{S.remove(grp);S.remove(key);S.remove(key.target);S.remove(floor);S.remove(hitL);S.remove(rb);S.remove(rb2);
+  const cleanup=()=>{S.remove(grp);key.intensity=0;S.remove(floor);hitL.intensity=0;S.remove(rb);S.remove(rb2);
     [card.geometry,floor.geometry,rb.geometry,rb2.geometry].forEach(x=>x.dispose());[edge,front,back,floor.material,rb.material,rb2.material,aura.material].forEach(x=>x.dispose());face.dispose();
     ST3.doneUid=a.uid+':'+t0;const e2=document.querySelector(`.lane.cre[data-uid="${a.uid}"]`);if(e2)e2.style.visibility='';el.style.visibility=''};
   return new Promise(res=>{
@@ -21063,7 +21088,10 @@ function b3dBuild(){const T=FX3.T,L=B3L;if(B3D.S)return true;
   const rim=new T.DirectionalLight(0x9db4ff,.32);rim.position.set(260,420,-900);S.add(rim);
   const glow=new T.PointLight(0xff9c50,.55,1500,1.6);glow.position.set(0,320,40);S.add(glow);
   const pool=[0,1,2].map(()=>{const l=new T.PointLight(0xffffff,0,760,2);l.position.set(0,-500,0);S.add(l);return l});
-  B3D.L={hemi,key,rim,glow,pool,aura:pool[2]};
+  // the winner's light for the shattering finish (b3d_shatter.js) lives in the scene from the start at 0 brightness: adding a light
+  // mid-duel changes the light count, which makes three.js recompile every lit material at the killing blow (animation overhaul 2026-11-25)
+  const win=new T.PointLight(0xffd889,0,1400,1.4);win.position.set(0,-500,0);S.add(win);
+  B3D.L={hemi,key,rim,glow,pool,aura:pool[2],win};
   B3D.r=r;B3D.S=S;B3D.camO=cam;B3D.cv=cv;B3D.slots=new T.Group();B3D.things=new T.Group();S.add(B3D.slots);S.add(B3D.things);
   B3D.keep=new Set();B3D.geo={card:b3dRound(T,L.CW,L.CH,1.8)};B3D.keep.add(B3D.geo.card);
   // card edges and stack sides are black, like Master Duel's (Malik, 2026-11-10: "when deck stacked the sides should appear black and corners rounded")
@@ -21159,7 +21187,7 @@ function b3dWorldAt(x,y){const T=FX3.T;if(!T||!B3D.camO)return null;const rc=B3D
 // appropriately to match their 3d perspective"): {sy, ang} = the ellipse a ground circle projects to, its short axis over its long one and
 // the long axis's angle on screen. Summon rings, painted bursts and the rune circle use it to lie on the board. null off the 3D board.
 function b3dGroundEll(x,y){try{if(!B3D.on||!B3D.live||!B3D.camO||!B3D.cv)return null;const w=b3dWorldAt(x,y);if(!w)return null;
-  const cam=B3D.camO,R=B3D.cv.getBoundingClientRect(),d=24,pr=v=>{v.project(cam);return [R.left+(v.x+1)/2*R.width,R.top+(1-v.y)/2*R.height]};
+  const cam=B3D.camO,R=b3dCvRect(),d=24,pr=v=>{v.project(cam);return [R.left+(v.x+1)/2*R.width,R.top+(1-v.y)/2*R.height]};
   const p0=pr(w.clone()),px=pr(w.clone().setX(w.x+d)),pz=pr(w.clone().setZ(w.z+d)),a=[px[0]-p0[0],px[1]-p0[1]],b=[pz[0]-p0[0],pz[1]-p0[1]];
   const m00=a[0]*a[0]+b[0]*b[0],m01=a[0]*a[1]+b[0]*b[1],m11=a[1]*a[1]+b[1]*b[1],tr=m00+m11,q=Math.sqrt(Math.max(0,tr*tr/4-(m00*m11-m01*m01)));
   const l1=tr/2+q,l2=Math.max(0,tr/2-q);if(!(l1>0))return null;return {sy:Math.max(.08,Math.min(1,Math.sqrt(l2/l1))),ang:.5*Math.atan2(2*m01,m00-m11)}}catch(e){return null}}
@@ -21358,7 +21386,7 @@ function b3dLayout(){const W=innerWidth,H=innerHeight,b=document.body,phone=docu
   if(land){const m=Math.round(B3D.ffa&&typeof b3dFfaEdge==='function'?b3dFfaEdge()*.5:W*.035);return {x:m,y:y0,w:Math.max(160,W-2*m),h:Math.max(140,y1-y0),land,side,right}}
   return {x:side,y:y0,w:Math.max(160,W-side-right),h:Math.max(140,y1-y0),land,side,right}}
 function b3dSize(){if(!B3D.cv)return;const R=b3dLayout(),cs=B3D.cv.style;B3D.R=R;cs.left='0px';cs.top='0px';cs.width=innerWidth+'px';cs.height=innerHeight+'px';
-  B3D.r.setPixelRatio(b3dCap()*B3RES.s);B3D.r.setSize(innerWidth,innerHeight,false);b3dShadow();b3dFit();b3dHud();b3dProxies()}
+  B3D.r.setPixelRatio(b3dCap()*B3RES.s);B3D.r.setSize(innerWidth,innerHeight,false);b3dShadow();b3dFit();b3dHud();b3dProxies(true)}
 // the phase button: says where the turn is; tap it to move on (Battle, then Main 2, then End Turn), using the game's own buttons
 function b3dPhase(){const g=typeof G!=='undefined'?G:null;if(!g)return null;const ph=phaseOf(g),mine=g.turn==='me',nm=(PHASES.find(x=>x[0]===ph)||[0,ph])[1];
   const nx=document.getElementById('nextPh'),et=document.getElementById('endturn'),busy=!!(g.sel||armedId&&armedId());
@@ -21478,9 +21506,16 @@ async function board3dPreview(cam){try{await fx3Load()}catch(e){return false}if(
 // and the attack stage all keep working unchanged. The default table since 2026-11-10 (Duel settings > Table; localStorage tithe-table unset or 'board');
 // Low graphics keeps the DOM table. Called after every render() and screen change by duel-ui/ui_9z_table3d.js. ----------
 function b3dWanted(){try{const v=localStorage.getItem('tithe-table');return (v==='board'||v==null)&&!(window.GFX&&GFX.lvl===0)&&!B3D.fail}catch(e){return false}}
+// Pre-build the 3D board while the player is on the home screen (desktop app and big screens): loading three.js, creating the WebGL
+// context and the table scene took ~3 s on the frame the first duel of a session started. Built here in idle time, the first duel opens like
+// every later one; the canvas joins the page only when a duel starts (animation overhaul 2026-11-25)
+function b3dPrewarm(){try{if(B3D.S||B3D.pw||!b3dWanted())return;const big=window.TITHE_DESKTOP||(Math.min(VP.w,VP.h)>=700&&(navigator.hardwareConcurrency||4)>4);if(!big)return;B3D.pw=1;
+    const idle=f=>(window.requestIdleCallback||(g=>setTimeout(g,200)))(f,{timeout:4000});
+    idle(()=>fx3Load().then(()=>idle(()=>{try{if(b3dInDuel())return;b3dBuild();fx3Init();if(B3D.r&&B3D.S&&B3D.camO)B3D.r.compile(B3D.S,B3D.camO);idle(()=>{try{st3Warm();b3dRarWarm()}catch(e){}})}catch(e){}})).catch(()=>{}))}catch(e){}}
+if(document.readyState==='complete')setTimeout(b3dPrewarm,2500);else addEventListener('load',()=>setTimeout(b3dPrewarm,2500));
 function b3dInDuel(){const g=document.getElementById('game');return !!(g&&!g.hidden&&!g.closest('[hidden]')&&typeof G!=='undefined'&&G&&G.me&&G.ai)}
 function b3dAfterRender(){const want=b3dWanted()&&b3dInDuel();if(want&&!B3D.on){if(!B3D.starting){B3D.starting=true;B3D.live=true;document.body.classList.add('b3live');
-      board3dPreview('md').then(ok=>{B3D.starting=false;if(!ok){B3D.fail=true;b3dStop()}else{b3dProxies();b3dIntro()}}).catch(e=>{console.warn('3d board',e);B3D.starting=false;B3D.fail=true;b3dStop()})}}
+      board3dPreview('md').then(ok=>{B3D.starting=false;if(!ok){B3D.fail=true;b3dStop()}else{b3dProxies();b3dIntro();try{(window.requestIdleCallback||setTimeout)(()=>{try{st3Warm()}catch(e){}try{b3dRarWarm()}catch(e){}})}catch(e){} /* shaders compiled while the duel loads (stage3d.js, b3d_rarity.js) */}}).catch(e=>{console.warn('3d board',e);B3D.starting=false;B3D.fail=true;b3dStop()})}}
   else if(want){B3D.sig='';b3dProxies();
     // the opening camera sweep plays once per match, not only when the 3D board first switches on: an online duel's board was already
     // up (lobby, rematch) when the match began, so it never swept in (Malik, 2026-11-16: "map doesn't 3d zoom in online at start of round")
@@ -21489,7 +21524,13 @@ function b3dAfterRender(){const want=b3dWanted()&&b3dInDuel();if(want&&!B3D.on){
   try{window.__landSync&&__landSync()}catch(e){}}
 function b3dStop(){B3D.live=false;if(B3D.intro)b3dIntroEnd(true);document.body.classList.remove('b3live');board3dOff();
   document.querySelectorAll('#mfield>.lane,#efield>.lane,#mspells>.sslot,#espells>.sslot,.board.mat>.mz').forEach(el=>['position','left','top','width','height','margin','min-height','max-height'].forEach(k=>el.style.removeProperty(k)))}
-function b3dProxies(){if(!B3D.on||!B3D.live||!B3D.R||!FX3.T)return;const T=FX3.T,R=B3D.cv.getBoundingClientRect(),L=B3L;
+// the 3D canvas always covers the window at 0,0 (b3dSize; body-level, position:fixed, never transformed), so its box on screen is the
+// viewport: reading it from VP instead of getBoundingClientRect() spares a forced layout in every per-frame caller (animation overhaul 2026-11-25)
+function b3dCvRect(){const w=(typeof VP!=='undefined'&&VP.w)||innerWidth,h=(typeof VP!=='undefined'&&VP.h)||innerHeight;return {left:0,top:0,right:w,bottom:h,width:w,height:h,x:0,y:0}}
+// The tap targets (the invisible flat lanes, slots and piles) are placed over their 3D slots after every render(). Measuring where each
+// one sits forces a full layout, so the measured placement is kept and simply written again while the camera, the window and the set of
+// targets are unchanged; a moved camera, a resize or b3dProxyChk seeing drift measures again (animation overhaul 2026-11-25).
+function b3dProxies(force){if(!B3D.on||!B3D.live||!B3D.R||!FX3.T)return;const T=FX3.T,R=b3dCvRect(),L=B3L;
   const cam=B3D.camO;
   const scr=(x,z,w,h)=>{let a=1e9,b=-1e9,c=1e9,d=-1e9;for(const [dx,dz] of [[-w/2,-h/2],[w/2,-h/2],[-w/2,h/2],[w/2,h/2]]){const v=new T.Vector3(x+dx,0,z+dz).project(cam);
       const px=R.left+(v.x+1)/2*R.width,py=R.top+(1-v.y)/2*R.height;a=Math.min(a,px);b=Math.max(b,px);c=Math.min(c,py);d=Math.max(d,py)}return [a,c,b-a,d-c]};
@@ -21497,6 +21538,9 @@ function b3dProxies(){if(!B3D.on||!B3D.live||!B3D.R||!FX3.T)return;const T=FX3.T
     document.querySelectorAll(`#${p}field>.lane`).forEach((el,i)=>items.push([el,b3dPos(sd,'cre',i)]));
     document.querySelectorAll(`#${p}spells>.sslot`).forEach((el,i)=>items.push([el,b3dPos(sd,'off',i)]));
     [['fz','field'],['ex','extra'],['gr','grave'],['dk','deck']].forEach(([z,k])=>{const el=document.getElementById(p+'z-'+z);if(el)items.push([el,b3dPos(sd,k)])})}
+  const sig=[R.width,R.height,devicePixelRatio,items.length,cam.matrixWorld.elements.map(v=>v.toFixed(3)).join(' ')].join('|'),PC=B3D.pxCache;
+  if(!force&&PC&&PC.sig===sig&&PC.v.length===items.length){items.forEach(([el],k)=>{const st=el.style,v=PC.v[k];
+      [['position','fixed'],['margin','0'],['min-height','0'],['max-height','none'],['left',v[0]],['top',v[1]],['width',v[2]],['height',v[3]]].forEach(([p,x])=>{if(st.getPropertyValue(p)!==x||st.getPropertyPriority(p)!=='important')st.setProperty(p,x,'important')})});return}
   // park each at 0,0 (100px square) to learn the box it is placed in and the zoom on it, then put it over its slot on the screen
   for(const [el] of items){const st=el.style;[['position','fixed'],['left','0px'],['top','0px'],['width','100px'],['height','100px'],['margin','0'],['min-height','0'],['max-height','none']].forEach(([k,v])=>st.setProperty(k,v,'important'))} // important: the lane's own height rules squashed the proxy to about half the card, so effects aimed above it (2026-11-10)
   const base=items.map(([el])=>el.getBoundingClientRect());
@@ -21507,11 +21551,11 @@ function b3dProxies(){if(!B3D.on||!B3D.live||!B3D.R||!FX3.T)return;const T=FX3.T
   {const idx=new Map(items.map(([el],k)=>[el,k]));for(const p of ['m','e'])document.querySelectorAll(`#${p}field>.lane`).forEach((ln,i)=>{const so=document.querySelectorAll(`#${p}spells>.sslot`)[i];if(!so)return;
     const a=box[idx.get(ln)],c=box[idx.get(so)];if(!a||!c)return;const up=a[1]<c[1]?a:c,dn=up===a?c:a,ov=up[1]+up[3]-dn[1];if(ov<=0)return;const mid=dn[1]+ov/2;up[3]=mid-up[1];dn[3]-=mid-dn[1];dn[1]=mid})}
   {const k=items.findIndex(([el])=>el.matches('#mfield>.lane'));B3D.pchk=k>=0?[items[k][0],box[k][0],box[k][1]]:null}
-  items.forEach(([el,p],k)=>{const q=base[k],z=q.width/100||1,[x,y,w,h]=box[k],st=el.style;
-    st.setProperty('left',(x-q.left)/z+'px','important');st.setProperty('top',(y-q.top)/z+'px','important');st.setProperty('width',w/z+'px','important');st.setProperty('height',h/z+'px','important')})}
+  const keep=[];items.forEach(([el,p],k)=>{const q=base[k],z=q.width/100||1,[x,y,w,h]=box[k],st=el.style,v=[(x-q.left)/z+'px',(y-q.top)/z+'px',w/z+'px',h/z+'px'];keep.push(v);
+    st.setProperty('left',v[0],'important');st.setProperty('top',v[1],'important');st.setProperty('width',v[2],'important');st.setProperty('height',v[3],'important')});B3D.pxCache={sig,v:keep}}
 // the tap targets are placed inside a box that can still be moving (a bar sliding in, the hand lifting when a card is armed): if they no
 // longer sit where the table draws its slots, place them again (checked from the HUD loop a few times a second)
-function b3dProxyChk(){const c=B3D.pchk;if(!c||!B3D.on||!B3D.live||B3D.shot)return;const r=c[0].getBoundingClientRect();if(!r.width)return;if(Math.abs(r.left-c[1])>2||Math.abs(r.top-c[2])>2)b3dProxies()}
+function b3dProxyChk(){const c=B3D.pchk;if(!c||!B3D.on||!B3D.live||B3D.shot)return;const r=c[0].getBoundingClientRect();if(!r.width)return;if(Math.abs(r.left-c[1])>2||Math.abs(r.top-c[2])>2)b3dProxies(true)}
 function board3dOff(){B3D.on=false;document.body.classList.remove('b3dprev','b3land');if(B3D.cv)B3D.cv.remove();document.querySelectorAll('.b3ph,.b3insp').forEach(x=>x.remove())}
 // ===== ui_9z_overcast.js =====
 // ---------- Overcast: the animation when a card is played with its Overcast (Malik, 2026-11-11: "need an animation for triggering an
@@ -21605,7 +21649,7 @@ function overcastFx(f){try{
     b.classList.toggle('rfq',g.turn==='ai'&&!g.responding);
     if(!S.items.length&&g.turn!=='ai'){if(el)el.classList.add('off');b.classList.remove('rfon');return}
     if(!el){el=document.createElement('aside');el.className='rfeed';el.setAttribute('aria-label','Rival actions');el.setAttribute('aria-live','polite');document.body.appendChild(el)}
-    b.classList.toggle('rfon',!!on);el.classList.toggle('off',!on);el.classList.toggle('idle',g.turn!=='ai');place(el);
+    b.classList.toggle('rfon',!!on);el.classList.toggle('off',!on);el.classList.toggle('idle',g.turn!=='ai');{const n=performance.now();if(!el.__pl||n-el.__pl>900||el.__plk!==g.turn){el.__pl=n;el.__plk=g.turn;place(el)}}   // placed when shown or the turn changes (and on resize), not after every redraw (two layout reads per render; animation overhaul 2026-11-25)
     const nm=esc(g.ai.name||'Rival'),head=g.turn==='ai'?`<i></i>Rival's turn <span>${nm} is playing…</span>`:`<i></i>Rival's last turn <span>${nm}</span>`;
     const key=head+'|'+S.items.join('|');if(el.dataset.k===key)return;el.dataset.k=key;names();
     const rows=S.items.length?S.items.map(s=>{let id=null;const h=esc(s).replace(NRX,m=>{if(!id)id=NID[m];return `<b>${m}</b>`});
@@ -21653,7 +21697,7 @@ function overcastFx(f){try{
   const mv=(m,v)=>[m[0]*v[0]+m[1]*v[1]+m[2]*v[2],m[3]*v[0]+m[4]*v[1]+m[5]*v[2],m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
   const basis=p=>{const m=[p[0],p[2],p[4],p[1],p[3],p[5],1,1,1],v=mv(adj(m),[p[6],p[7],1]);return mul(m,[v[0],0,0,0,v[1],0,0,0,v[2]])};
   const homog=(src,dst)=>{const t=mul(basis(dst),adj(basis(src)));for(let i=0;i<9;i++)t[i]/=t[8];return `matrix3d(${t[0]},${t[3]},0,${t[6]},${t[1]},${t[4]},0,${t[7]},0,0,1,0,${t[2]},${t[5]},0,${t[8]})`};
-  function b3hFaces(){const T=typeof FX3!=='undefined'&&FX3.T,cam=B3D.camO;if(!T||!cam||!B3D.things||!B3D.cv)return;const R=B3D.cv.getBoundingClientRect(),L=B3L,v=new T.Vector3(),seen=new Set();
+  function b3hFaces(){const T=typeof FX3!=='undefined'&&FX3.T,cam=B3D.camO;if(!T||!cam||!B3D.things||!B3D.cv)return;const R=b3dCvRect(),L=B3L,v=new T.Vector3(),seen=new Set();
     B3D.things.updateMatrixWorld();
     B3D.things.traverse(m=>{const u=m.userData;if(!u||!u.face)return;if(m.parent&&m.parent.userData&&m.parent.userData.shHid)return;   // (a card that has shattered: b3d_shatter.js)
       const grp=m.parent,gk=grp&&grp.userData||{},key=(gk.key||((gk.side||'')+(u.pile?':pile':':'+m.uuid)))+'|'+u.face;seen.add(key);
@@ -21673,14 +21717,27 @@ function overcastFx(f){try{
   // playing"): hits, shakes, lunges, flashes and fades still run on the (invisible) flat lanes and their cards; each frame, whatever
   // they animate (transform, filter, opacity) is copied onto the visible card face, so every effect built for the flat board shows here
   const IDM='matrix(1, 0, 0, 1, 0, 0)',BASE=new WeakMap(),HELD={t:'',k:''};
-  function b3hMirror(){for(const sd of ['m','e']){const ls=document.querySelectorAll(`#${sd}field>.lane`);ls.forEach((L,i)=>{
+  let RV=0;try{RENDER_POST.push(()=>{RV++})}catch(e){}   // bumped by every render(), so a lane's rest look is re-read only after a redraw
+  function b3hMirror(){for(const sd of ['m','e']){
+    // one look at the whole side first: no animation running on it, nothing mirrored and no redraw since the rest looks were taken ->
+    // nothing to do this frame (two getAnimations calls instead of twenty, no style reads; animation overhaul 2026-11-25)
+    {const fld=document.getElementById(sd+'field');if(fld&&fld.__rv===RV&&!document.querySelector(`.b3face[data-mir][data-k^="${sd==='m'?'me':'ai'}:"]`)){
+      // asking for the running animations makes the browser restyle first, so a side at rest is asked every 4th frame only (a hit that
+      // starts is picked up within ~3 frames); a side that is animating is asked every frame
+      if(fld.__rest&&n%4)continue;
+      let any=false;try{for(const a of fld.getAnimations({subtree:true})){if(a.playState==='running'&&a.effect&&a.effect.getTiming().iterations!==Infinity){any=true;break}}}catch(e){any=true}
+      fld.__rest=!any;if(!any)continue}}
+    const ls=document.querySelectorAll(`#${sd}field>.lane`);{const fld=document.getElementById(sd+'field');if(fld)fld.__rv=RV}ls.forEach((L,i)=>{
       const f=document.querySelector(`.b3face[data-k="${sd==='m'?'me':'ai'}:c${i}"]`);if(!f)return;const fc=f.firstElementChild;if(!fc)return;
       const cd=L.querySelector('.card'),fin=a=>{try{return a.playState==='running'&&a.effect.getTiming().iterations!==Infinity}catch(x){return false}};const on=L.getAnimations().some(fin)||(cd&&cd.getAnimations().some(fin)); // endless glows are the resting look
+      // at rest and nothing redrawn since the rest look was taken: nothing to copy, and no computed-style read (each one forced a style
+      // recalculation every frame for all ten lanes; animation overhaul 2026-11-25)
+      if(!on&&!f.dataset.mir){const b0=BASE.get(L);if(b0&&b0.cd===cd&&b0.rv===RV)return}
       const lc=getComputedStyle(L),cc=cd?getComputedStyle(cd):null;
       let m=new DOMMatrix(lc.transform==='none'?IDM:lc.transform);if(cc&&cc.transform!=='none')m=m.multiply(new DOMMatrix(cc.transform));
       const fl=[lc.filter,cc&&cc.filter].filter(x=>x&&x!=='none').join(' '),op=(+lc.opacity)*(cc?+cc.opacity:1);
       // at rest: remember how the flat lane looks (the rival's lanes are turned, a Defense card is turned...), so only the animation's change is copied
-      if(!on){BASE.set(L,{m,fl,op,cd});if(f.dataset.mir){delete f.dataset.mir;fc.style.transform='';fc.style.filter='';fc.style.opacity=''}return}
+      if(!on){BASE.set(L,{m,fl,op,cd,rv:RV});if(f.dataset.mir){delete f.dataset.mir;fc.style.transform='';fc.style.filter='';fc.style.opacity=''}return}
       let bs=BASE.get(L);
       // a card that has just landed (a summon slam) has no rest look yet, and the empty lane's isn't its: take its resting turn as the
       // nearest quarter turn of what it shows now (the rival's cards lie turned to them, Defense sideways), so the 3D face never spins
@@ -25228,7 +25285,7 @@ var CLK={max:240,turn:60,opp:30};
 
 // ===== ui_9z_zstamp.js =====
 // ---------- Build stamp: lets two online players see which of them runs the newer build ----------
-var TITHE_STAMP=1795629012; // build time, written by the build step (used to tell which of two online players is on the newer version)
+var TITHE_STAMP=1795634982; // build time, written by the build step (used to tell which of two online players is on the newer version)
 
 // ===== ui_9z_shortcode.js =====
 // ---------- Short online codes: every online match is joined with a 5-digit number.
@@ -27105,7 +27162,10 @@ var BOTS=[
     g.type='button';g.textContent='⚙';g.title='Duel settings';g.setAttribute('aria-label','Duel settings');g.onclick=openDuelSet;
     const f=document.getElementById('gForfeit');(f||m).after(g)};
   const placeGear=()=>{const g=document.getElementById('gSet'),f=document.getElementById('gForfeit'),m=document.getElementById('gMenu');if(!g)return;const au=document.getElementById('auM'),op=g.offsetParent;if(au&&op&&au.getBoundingClientRect().width){const L=au.getBoundingClientRect().left-op.getBoundingClientRect().left-g.offsetWidth-8;g.style.left=L+'px'}else{const ref=f&&!f.hidden?f:m;if(ref)g.style.left=(ref.offsetLeft+ref.offsetWidth+8)+'px'}};
-  addGear();setInterval(()=>{addGear();placeGear()},1000);
+  // placed again only when something it sits beside could have moved (window size, the sound button, Forfeit shown or hidden, the menu's label):
+  // measuring once a second all match forced a layout that could land mid-animation (animation overhaul 2026-11-25)
+  let GK='';addGear();setInterval(()=>{const gm=document.getElementById('game');if(!gm||gm.hidden)return;addGear();const f=document.getElementById('gForfeit'),m=document.getElementById('gMenu');
+    const k=VP.w+'x'+VP.h+'|'+!!document.getElementById('auM')+'|'+!!(f&&!f.hidden)+'|'+(m?m.textContent:'')+'|'+!!document.getElementById('gSet');if(k===GK)return;GK=k;placeGear()},1000);
   const css2=document.createElement('style');css2.textContent=`.mdsetbox{max-width:min(440px,92vw);display:grid;gap:12px}.mdsetbox .mdset{padding:4px 0}.gset{position:absolute;top:2px;left:150px;z-index:4;min-width:34px;padding-inline:8px;border-radius:999px!important}
     .mdwait{white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}@media (max-width:420px){.mdwait{font-size:11px;padding:4px 10px}}`;document.head.appendChild(css2);
 })();
@@ -28447,7 +28507,7 @@ body.htside-on.htdeals #htside{display:none}
   let FM=null;
   function fan(){const h=document.getElementById('hand');if(!h)return;const cs=[...h.children].filter(c=>c.classList.contains('card'));
     const n=cs.length;if(!n)return;const t=h.closest('.table'),g=document.getElementById('game');
-    const key=VP.w+'x'+VP.h+'|'+(t?t.className+'|'+t.style.cssText:'')+'|'+(g?g.style.zoom+g.className:'')+'|'+(typeof B3D!=='undefined'&&B3D.on&&B3D.hcwCss||'');   // the 3D board sets the hand card size (B3D.hcwCss, duel-ui/ui_9z_board3d.js)
+    const key=VP.w+'x'+VP.h+'|'+(t?t.className+'|'+t.style.cssText:'')+'|'+(g?g.style.zoom+' '+(g.className.match(/\S*(?:mob|b3|ffa|tag|phone|port|land|wide|compact|slim)\S*/g)||[]).join(' '):'')+'|'+(typeof B3D!=='undefined'&&B3D.on&&B3D.hcwCss||'');   // the 3D board sets the hand card size (B3D.hcwCss, duel-ui/ui_9z_board3d.js)
     const bw=typeof B3D!=='undefined'&&B3D.on&&B3D.hcwCss;if(bw)cs.forEach(c=>{if(c.style.getPropertyValue('--cw')!==bw+'px')c.style.setProperty('--cw',bw+'px','important')});else cs.forEach(c=>c.style.removeProperty('--cw'));
     if(!FM||FM.key!==key||!FM.cw){const cw=bw||cs[0].offsetWidth||150;FM={key,cw,ch:bw?bw*1.2625:cs[0].offsetHeight||cw*1.4,W:h.clientWidth-12}}
     const cw=FM.cw,ch=FM.ch;h.style.setProperty('--hch',ch+'px');
@@ -30155,7 +30215,7 @@ body[class*="fr-"] #hand .card,.rwframe[class*="fr-"] .card,.card[class*="frm-"]
       if(/_full$|_cut$/.test(k)){const p='img/'+k+'.webp';try{if(!IMGPACK[p])IMGPACK[p]=['giver2',0,0];IMGURL[p]=u}catch(e){}}
       else{try{ARTURL[k]=u;ARTPACK_IDS.add(k);CROPPED.add(k)}catch(e){}}}
     try{artFixAll()}catch(e){}try{if(typeof G!=='undefined'&&G&&!document.getElementById('game').hidden)render()}catch(e){}};
-  setTimeout(()=>fetch('/_blob/84069e249ab467b4bff1b16fe86073dc').then(json).catch(()=>fetch('img/artpack_giver2.json').then(json)).then(j=>{U={};
+  setTimeout(()=>(/claude\.ai|claudeusercontent|anthropic/i.test(location.hostname)?fetch('/_blob/84069e249ab467b4bff1b16fe86073dc').then(json).catch(()=>fetch('img/artpack_giver2.json').then(json)):fetch('img/artpack_giver2.json').then(json)).then(j=>{U={};
     for(const k in j){let u;try{u=dataToBlobUrl(j[k])}catch(e){continue}U[k]=u;
       if(/_full$|_cut$/.test(k)){const p='img/'+k+'.webp';try{if(!IMGPACK[p])IMGPACK[p]=['giver2',0,0];IMGURL[p]=u}catch(e){}}
       else{try{ARTURL[k]=u;ARTPACK_IDS.add(k);CROPPED.add(k)}catch(e){}}}
@@ -30612,7 +30672,9 @@ body.tbl3d #game #hand{overflow:visible!important}`;document.head.appendChild(st
   // Ama Thunderhead (2026-11-06, Malik picked Kaisa, "giant" treatment: pitched to 0.84 with a sub layer at 0.70, bass +7 dB, wide mountain
   // echo) re-voices all 9 of her lines: card summon/attack (v_giant_mother_ama, _c), her ally line (al_ama) and her Wider Road lines (s4v_*).
   // This loader wraps smpLoad last, so these clips win over the older packs (vopack_xd1, vopack_ally, vopack_s4a/b).
-  [ '/_blob/148307620f3410a3c942c9bb11e59113','/_blob/757323822e5d87cf81ad8ad8991539d8','/_blob/20941a2a19cd14d229b1215a84f3f052','/_blob/ea7c25487c02efea968124e88a20dc29','/_blob/5ed0f6eaa09f29ad77770c575beebb9a','/_blob/224f5761c2866e034f1d4bfb27656cb7','/_blob/bce5497916d4499d9c0c7dd171300b12' ].forEach(  // + the Mountain Who Walks, the Gambit re-cast (2026-11-07: the comment used to swallow this forEach, so none loaded)
+  // the asset store exists only on claude.ai; elsewhere (website, desktop app) the one pack that isn't in the local voice packs ships as
+  // img/vopack_gb2.json (Queen's Gambit lines), so no request goes to a /_blob/ address that can't exist there
+  (/claude\.ai|claudeusercontent|anthropic/i.test(location.hostname)?[ '/_blob/148307620f3410a3c942c9bb11e59113','/_blob/757323822e5d87cf81ad8ad8991539d8','/_blob/20941a2a19cd14d229b1215a84f3f052','/_blob/ea7c25487c02efea968124e88a20dc29','/_blob/5ed0f6eaa09f29ad77770c575beebb9a','/_blob/224f5761c2866e034f1d4bfb27656cb7','/_blob/bce5497916d4499d9c0c7dd171300b12' ]:['img/vopack_gb2.json']).forEach(  // + the Mountain Who Walks, the Gambit re-cast (2026-11-07: the comment used to swallow this forEach, so none loaded)
     u=>fetch(u).then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()}).then(j=>{for(const k in j){try{CL[k]=dataToBlobUrl(j[k]);Set.prototype.add.call(VO_FILES,k);if(SMP&&SMP.buf)delete SMP.buf[k]}catch(e){}}}).catch(()=>{}));  // (+ Mother Wynn's attack lines, + Sibyl Anwen's new voice)
   // overnight 2026-11-08 voice audit: the last deck lines still on browser speech. Queen's Gambit (d_gambit_0-2, ElevenLabs "Bella - Deep,
   // Elegant and Intimidating", the Grandmaster's voice) and Jessamy's "Hollowmere remembers." (d_witch_0, Lulu)
@@ -31396,7 +31458,7 @@ html.dscale #game #hand>.card,html.dscale #game .table.tight #hand .card,html.ds
   // only cards that are new on the field (or every card after the screen changes size) are framed: the lane elements are kept between
   // redraws, and measuring every lane after every action forced several full layouts (perf pass 2026-11-09)
   let SK='';
-  const sweep=()=>{try{const g=document.getElementById('game'),k=VP.w+'x'+VP.h+'|'+(g?g.style.zoom+g.className:'');const all=k!==SK;SK=k;
+  const sweep=()=>{try{const g=document.getElementById('game'),k=VP.w+'x'+VP.h+'|'+(g?g.style.zoom+' '+(g.className.match(/\S*(?:mob|b3|ffa|tag|phone|port|land|wide|compact|slim)\S*/g)||[]).join(' '):'');   // only the #game classes that change the table's layout (the many state classes toggled mid-duel re-measured every lane; animation overhaul 2026-11-25)const all=k!==SK;SK=k;
       document.querySelectorAll('#game .lane.cre').forEach(L=>{const img=L.querySelector(':scope>.ico img');if(!img)return;if(!all&&img.__fa===img.getAttribute('src'))return;img.__fa=img.getAttribute('src');fix(L)})}catch(e){}};
   try{onRender(function(r){sweep()})}catch(e){}
   addEventListener('resize',()=>setTimeout(sweep,80));
@@ -35715,6 +35777,13 @@ const B3R_FIRE_FS=`precision highp float;varying vec2 vUv;uniform sampler2D map;
 vec4 fr(float f,vec2 uv){float c=mod(f,8.),r=floor(f/8.);return texture2D(map,vec2((c+fract(uv.x))/8.,1.-(r+1.-uv.y)/4.));}
 void main(){float f=t*12.;float a=floor(f),k=f-a;vec2 uv=vec2(vUv.x*rep+off,vUv.y);
  vec4 c=mix(fr(mod(a,32.),uv),fr(mod(a+1.,32.),uv),k);if(c.a<.01)discard;gl_FragColor=c;}`;
+// compile the rarity shaders (foil face, hellfire walls) while the board loads, so the first Prismatic / Abyss / Hades print on the table
+// doesn't stall the frame it lands in; the warm-up materials are kept so three.js keeps their programs (animation overhaul 2026-11-25)
+function b3dRarWarm(){try{if(B3R.warm||!B3D.r||!B3D.S||!B3D.camO||!FX3.T)return;const T=FX3.T;
+    const fm=new T.ShaderMaterial({vertexShader:B3R_FACE_VS,fragmentShader:B3R_FACE_FS,transparent:true,depthWrite:false,blending:T.AdditiveBlending,uniforms:{t:{value:0},mode:{value:0},tint:{value:new T.Color(0x9f7dff)},asp:{value:1.26}}});
+    const mt=new T.ShaderMaterial({vertexShader:B3R_FIRE_VS,fragmentShader:B3R_FIRE_FS,transparent:true,depthWrite:false,side:T.DoubleSide,uniforms:{map:{value:b3dRarStrip(T)},t:{value:0},rep:{value:1},off:{value:0}}});
+    const g=new T.Group(),geo=new T.PlaneGeometry(1,1);g.add(new T.Mesh(geo,fm));g.add(new T.Mesh(geo,mt));g.position.set(0,-900,0);
+    B3D.S.add(g);B3D.r.compile(B3D.S,B3D.camO);B3D.S.remove(g);B3R.warm={fm,mt}}catch(e){}}
 function b3dRarKeep(mt){mt.addEventListener('dispose',()=>{mt.__gone=1});B3R.mats.push(mt)}
 function b3dRarStrip(T){if(B3R.strip)return B3R.strip;const tx=new T.TextureLoader().load('img/fx_hellfire_strip.webp',()=>{try{B3D.dirty=true}catch(e){}});
   tx.encoding=T.sRGBEncoding;tx.minFilter=T.LinearFilter;tx.generateMipmaps=false;return B3R.strip=tx}
@@ -36323,10 +36392,12 @@ function b3dShatter(side,col,hit){try{if(!B3D.on||!B3D.r||!FX3.T)return false;if
   const hide=()=>{const ks=new Set(cards.filter(c=>c.on).map(c=>c.k));B3D.things.children.forEach(o=>{const k=key(o);if(k&&ks.has(k)){o.visible=false;o.userData.shHid=1}});
     (B3D.glows||[]).forEach(g=>{if(g.position&&g.position.z*s>0)g.visible=false})};
   // the winner's side: a warm gold light comes up over their half and their cards rise a little off the table
-  const win=new T.PointLight(0xffd889,0,1400,1.4);win.position.set(0,260,-s*L.ZC*1.1);B3D.S.add(win);
+  const win=(B3D.L&&B3D.L.win)||(()=>{const l=new T.PointLight(0xffd889,0,1400,1.4);B3D.S.add(l);return l})();win.intensity=0;win.position.set(0,260,-s*L.ZC*1.1);   // the pooled light (board3d.js): no shader recompile
   const rm=typeof RM==='function'&&RM(),end=(cards.length?cards[cards.length-1].tb:.5)+1.3;
   document.body.classList.add(s>0?'b3winE':'b3winM');
   B3D.sh={topTex,t0:performance.now(),grp,cards,rt,topM,hide,s,col,hx,hz,win,end,cam:false,slow:!rm,t:0};B3D.dirty=true;return true}catch(e){console.warn('b3d shatter',e);try{b3dShatterEnd()}catch(x){}return false}}
+// the winner's light goes dark and stays in the scene (the pooled one is kept; only a stray fallback light is removed)
+function b3dShatterLightOff(l){if(!l)return;l.intensity=0;l.position.set(0,-500,0);if(!(B3D.L&&B3D.L.win===l))try{B3D.S.remove(l)}catch(e){}}
 // every frame while it runs (called from b3dLoop): true = the scene changed
 // slow motion on the killing blow: the first cracks run at full speed, then the first bursts play at 30% for 0.7 s and snap back
 const B3SLOW={a:.4,b:1.1,k:.3};
@@ -36354,10 +36425,10 @@ function b3dShatterEnd(keep){const S=B3D.sh;if(!S)return;B3D.sh=null;try{B3D.S.r
     S.grp.traverse(m=>{if(m.geometry)m.geometry.dispose();if(m.material)(Array.isArray(m.material)?m.material:[m.material]).forEach(x=>x.dispose())});S.topM.dispose();
     if(S.topTex!==S.rt.texture)S.topTex.dispose();S.rt.dispose();
     if(S.slowOn){S.slowOn=false;b3dShatterSlowCss(false)}
-    if(keep){B3D.shHole=S}else{document.body.classList.remove('b3winM','b3winE');B3D.S.remove(S.win)}}catch(e){}B3D.dirty=true}
+    if(keep){B3D.shHole=S}else{document.body.classList.remove('b3winM','b3winE');b3dShatterLightOff(S.win)}}catch(e){}B3D.dirty=true}
 // the end screen covers the board after the burst; the cards come back when the board is next built or a new duel starts
 function b3dShatterReset(){const H=B3D.shHole;if(B3D.sh)b3dShatterEnd();document.body.classList.remove('b3winM','b3winE');if(!H)return;B3D.shHole=null;
-  try{B3D.S.remove(H.win)}catch(e){}
+  try{b3dShatterLightOff(H.win)}catch(e){}
   [...B3D.things.children,...B3D.slots.children].forEach(o=>{o.visible=true;o.userData.shHid=0;if(o.userData.shY0!=null){o.position.y=o.userData.shY0;o.userData.shY0=null}});B3D.dirty=true}
 // (the camera used to follow the board down into the pit when you lost; the cards just burst now, so it holds)
 function b3dShatterCam(){}
@@ -36944,7 +37015,7 @@ function deepLycanGuard(c){try{if(typeof G==='undefined'||!G||!G.me)return false
     try{ARTURL.deep_lycan_cut=P.deep_lycan_cut}catch(e){}
     try{artFixAll()}catch(e){}try{if(typeof G!=='undefined'&&G&&!document.getElementById('game').hidden)render()}catch(e){}};
   // the published game keeps this pack in its asset store (the version is at its 256 MiB cap); a local build reads img/
-  const get=()=>fetch('/_blob/a20d47fc94bbe2bd5c52ca4272d25cbc').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r}).catch(()=>fetch('img/artpack_deeplycan.json'));
+  const get=()=>!(/claude\.ai|claudeusercontent|anthropic/i.test(location.hostname))?fetch('img/artpack_deeplycan.json'):fetch('/_blob/a20d47fc94bbe2bd5c52ca4272d25cbc').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r}).catch(()=>fetch('img/artpack_deeplycan.json'));
   setTimeout(()=>get().then(r=>r.ok?r.json():{}).then(j=>{P={};for(const k in j){try{P[k]=dataToBlobUrl(j[k])}catch(e){}}
     apply();[2000,6000,15000].forEach(t=>setTimeout(apply,t))}).catch(()=>{}),200);
 }catch(e){console.warn('deep lycan art',e)}})();
@@ -36955,7 +37026,7 @@ function vesnaMax(g,o,c){try{const n=cre(o).filter(x=>x!==c&&hasKw(x,'nocturnal'
 // Vesna's painting (Gemini, 2026-11-06): in the published game's asset store, img/artpack_vesna.json in a local build. Raw: ~/Downloads/tithe_art/vesna/
 (function(){try{try{CROPPED.add('vesna_thorne')}catch(e){}
   const json=r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()};
-  setTimeout(()=>fetch('/_blob/6b17b1659eb8e0407d58bdcc05d3924c').then(json).catch(()=>fetch('img/artpack_vesna.json').then(json)).then(j=>{
+  setTimeout(()=>(/claude\.ai|claudeusercontent|anthropic/i.test(location.hostname)?fetch('/_blob/6b17b1659eb8e0407d58bdcc05d3924c').then(json).catch(()=>fetch('img/artpack_vesna.json').then(json)):fetch('img/artpack_vesna.json').then(json)).then(j=>{
     for(const k in j){try{ARTURL[k]=dataToBlobUrl(j[k]);ARTPACK_IDS.add(k)}catch(e){}}try{artFixAll()}catch(e){}
     try{if(typeof G!=='undefined'&&G&&!document.getElementById('game').hidden)render()}catch(e){}}).catch(()=>{}),250)}catch(e){}})();
 

@@ -1,5 +1,19 @@
 [
  {
+  "version": "0.1.2",
+  "date": "Nov 25, 2026",
+  "title": "Smoother Duels",
+  "items": [
+   "Duels run noticeably smoother: the 3D board no longer re-measures the whole screen every frame, and half the per-frame layout work is gone",
+   "No more stall on the first attack or the finishing blow: the 3D effects are prepared while the duel loads instead of the moment they first play",
+   "The first duel of a session opens fast: the 3D board is built quietly while you're on the home screen",
+   "Summon cut-ins slam in without a hitch: every cut-out is decoded before it's needed",
+   "On PC and Mac the game draws on your graphics card everywhere and keeps full speed when the window isn't in focus",
+   "Fixed: Queen's Gambit voice lines and Deep Lycan's newest art were missing outside the browser preview",
+   "All 53 decks played full AI-vs-AI duels with zero errors"
+  ]
+ },
+ {
   "version": "0.1.1",
   "date": "Nov 25, 2026",
   "title": "Desktop Settings",
